@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import type { GlobeMethods } from 'react-globe.gl'
@@ -26,13 +26,58 @@ const T = {
   syne: "'Syne', sans-serif",
 } as const
 
+// ── Scroll-driven globe controller ───────────────────────────────────────────
+function useScrollGlobe(globeRef: React.MutableRefObject<GlobeMethods | null>) {
+  const [scrollY, setScrollY] = useState(0)
+  const ticking = useRef(false)
+
+  useEffect(() => {
+    const onScroll = () => {
+      if (!ticking.current) {
+        ticking.current = true
+        requestAnimationFrame(() => {
+          setScrollY(window.scrollY)
+          ticking.current = false
+        })
+      }
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useEffect(() => {
+    const globe = globeRef.current
+    if (!globe) return
+
+    const vh = window.innerHeight
+    const progress = Math.min(scrollY / (vh * 1.5), 1)
+
+    // Zoom out as user scrolls (altitude 2.5 → 4.5)
+    const altitude = 2.5 + progress * 2.0
+    // Tilt the view (lat sweeps 20 → 50)
+    const lat = 20 + progress * 30
+    // Rotate longitude
+    const lng = -40 + progress * 80
+
+    globe.pointOfView({ lat, lng, altitude }, 0)
+  }, [scrollY, globeRef])
+
+  return scrollY
+}
+
 // ── Landing Page ──────────────────────────────────────────────────────────────
 export default function Landing() {
   const navigate = useNavigate()
   const globeRef = useRef<GlobeMethods | null>(null)
+  const scrollY = useScrollGlobe(globeRef)
 
   const handleGlobeReady = useCallback((globe: GlobeMethods) => {
     globeRef.current = globe
+    // Disable user drag so scroll works naturally
+    const controls = globe.controls()
+    controls.enableZoom = false
+    controls.enablePan = false
+    controls.enableRotate = false
   }, [])
 
   const handleEnterDashboard = useCallback(() => {
@@ -41,6 +86,10 @@ export default function Landing() {
     }
     setTimeout(() => navigate('/dashboard'), 900)
   }, [navigate])
+
+  // Globe fades out as user scrolls past hero
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 900
+  const globeOpacity = Math.max(0, 1 - scrollY / (vh * 0.8))
 
   return (
     <motion.div
@@ -59,6 +108,20 @@ export default function Landing() {
       {/* Scanline */}
       <div className="scanline-overlay" style={{ position: 'fixed', zIndex: 0 }} />
 
+      {/* ═══ GLOBE (fixed behind everything, responds to scroll) ═══ */}
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 0,
+        opacity: globeOpacity,
+        transition: 'opacity 0.1s linear',
+        pointerEvents: globeOpacity > 0.3 ? 'auto' : 'none',
+      }}>
+        <Globe3D
+          companies={SP500_SAMPLE}
+          enableAutoRotate={false}
+          onGlobeReady={handleGlobeReady}
+        />
+      </div>
+
       {/* ═══ HERO ═══ */}
       <section style={{
         position: 'relative', height: '100vh',
@@ -66,15 +129,6 @@ export default function Landing() {
         alignItems: 'center', justifyContent: 'center',
         overflow: 'hidden',
       }}>
-        {/* Globe background */}
-        <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
-          <Globe3D
-            companies={SP500_SAMPLE}
-            enableAutoRotate={true}
-            onGlobeReady={handleGlobeReady}
-          />
-        </div>
-
         {/* Vignette overlay */}
         <div style={{
           position: 'absolute', inset: 0, zIndex: 1,
@@ -94,7 +148,7 @@ export default function Landing() {
           borderBottom: `1px solid ${T.border}`,
         }}>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: T.text0, letterSpacing: -0.5 }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: T.text0, letterSpacing: -0.5, fontFamily: T.syne }}>
               RISK<span style={{ color: T.blue }}>TERRAIN</span>
             </div>
             <div style={{
@@ -123,7 +177,6 @@ export default function Landing() {
           position: 'relative', zIndex: 2,
           textAlign: 'center', padding: '0 24px', marginTop: 40,
         }}>
-          {/* Overline */}
           <motion.div
             initial={{ opacity: 0, y: -12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -139,7 +192,6 @@ export default function Landing() {
             <span style={{ width: 40, height: 1, background: T.blue, display: 'inline-block' }} />
           </motion.div>
 
-          {/* Headline */}
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -154,7 +206,6 @@ export default function Landing() {
             RISK<span style={{ color: T.blue }}>TERRAIN</span>
           </motion.h1>
 
-          {/* Tagline */}
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -169,14 +220,11 @@ export default function Landing() {
             GEOSPATIAL RISK INTELLIGENCE FOR THE S&amp;P 500
           </motion.p>
 
-          {/* Stats */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1.0, duration: 0.6 }}
-            style={{
-              display: 'flex', gap: 40, justifyContent: 'center', marginBottom: 48,
-            }}
+            style={{ display: 'flex', gap: 40, justifyContent: 'center', marginBottom: 48 }}
           >
             {[
               { value: String(SP500_SAMPLE.length), label: 'COMPANIES TRACKED', color: T.blue },
@@ -196,7 +244,6 @@ export default function Landing() {
             ))}
           </motion.div>
 
-          {/* CTA */}
           <motion.button
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -214,7 +261,7 @@ export default function Landing() {
               transition: 'box-shadow 0.2s',
             }}
           >
-            ENTER DASHBOARD →
+            ENTER DASHBOARD &rarr;
           </motion.button>
         </div>
 
@@ -230,11 +277,11 @@ export default function Landing() {
           }}
         >
           <div style={{ marginBottom: 6 }}>SCROLL TO EXPLORE</div>
-          <div style={{ fontSize: 16, color: T.text3 }}>↓</div>
+          <div style={{ fontSize: 16, color: T.text3 }}>&darr;</div>
         </motion.div>
       </section>
 
-      {/* ═══ FEATURES ═══ */}
+      {/* ═══ HOW IT WORKS ═══ */}
       <section style={{
         padding: '120px 48px', background: T.bg1,
         position: 'relative', zIndex: 2,
@@ -245,9 +292,10 @@ export default function Landing() {
             color: T.blue, marginBottom: 16,
           }}>CAPABILITIES</div>
           <h2 style={{
-            fontSize: 'clamp(26px, 4vw, 44px)', fontWeight: 800,
-            color: T.text0, letterSpacing: -1,
-          }}>HOW IT WORKS</h2>
+            fontSize: 'clamp(26px, 4vw, 42px)', fontWeight: 700,
+            color: T.text0, letterSpacing: 0.5,
+            fontFamily: T.mono,
+          }}>How It Works</h2>
           <div style={{
             width: 60, height: 2, background: T.blue,
             margin: '16px auto 0', borderRadius: 1,
@@ -256,41 +304,62 @@ export default function Landing() {
 
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          gap: 24, maxWidth: 1100, margin: '0 auto',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: 28, maxWidth: 1200, margin: '0 auto',
         }}>
           {[
             {
-              icon: '⚡',
-              title: 'REAL-TIME EVENT MONITORING',
-              desc: 'Ingest geopolitical shocks, natural disasters, and macro events from GDELT, USGS, and NewsAPI. Classified and routed in seconds.',
+              step: '01',
+              title: 'Real-Time Event Monitoring',
+              subtitle: 'Continuous global surveillance across multiple data feeds',
+              desc: 'The system ingests geopolitical shocks, natural disasters, and macroeconomic shifts from three primary sources in real time. Events are automatically classified by type, severity, and geographic footprint, then routed into the analysis pipeline within seconds of detection.',
+              details: [
+                'GDELT Project for geopolitical events and conflict monitoring',
+                'USGS ShakeAlert for seismic activity and natural disaster tracking',
+                'NewsAPI for breaking financial and corporate news aggregation',
+                'Automatic event classification by type, severity, and affected regions',
+              ],
               color: T.red,
-              tags: ['GDELT', 'USGS', 'NEWSAPI'],
+              tags: ['GDELT', 'USGS', 'NEWSAPI', 'REAL-TIME'],
             },
             {
-              icon: '🕸️',
-              title: 'KNOWLEDGE GRAPH TRAVERSAL',
-              desc: 'S&P 500 supply chain relationships encoded in SurrealDB. LangGraph agents traverse multi-hop exposure paths to identify second-order risks.',
+              step: '02',
+              title: 'Knowledge Graph Traversal',
+              subtitle: 'Multi-hop supply chain exposure analysis via graph database',
+              desc: 'S&P 500 companies and their supply chain relationships are encoded as a knowledge graph in SurrealDB. When an event occurs, LangGraph agents traverse the graph to map direct and second-order exposure paths across sectors and geographies.',
+              details: [
+                'SurrealDB multi-model database storing company nodes and supply chain edges',
+                'LangGraph orchestrates multi-step agent traversal across the graph',
+                'Second-order risk detection through supplier-of-supplier chain analysis',
+                'Geographic and sector-based exposure clustering for downstream scoring',
+              ],
               color: T.blue,
-              tags: ['SURREALDB', 'LANGGRAPH', 'GRAPH RAG'],
+              tags: ['SURREALDB', 'LANGGRAPH', 'GRAPH RAG', 'MULTI-HOP'],
             },
             {
-              icon: '🧠',
-              title: 'AI-POWERED RISK SCORING',
-              desc: 'Claude synthesizes graph traversal outputs with sector exposure data to produce ranked risk scores with natural language reasoning.',
+              step: '03',
+              title: 'AI-Powered Risk Scoring',
+              subtitle: 'Contextual risk synthesis with natural language reasoning',
+              desc: 'Claude receives the graph traversal output, sector exposure data, and historical event parallels. It produces ranked risk scores from 0 to 1.0 for each affected company, accompanied by natural language explanations detailing the causal chain from event to impact.',
+              details: [
+                'Claude Sonnet synthesizes graph data with sector exposure analysis',
+                'Risk scores from 0.0 to 1.0 with confidence intervals per company',
+                'Natural language reasoning explains the causal chain from event to impact',
+                'Historical event comparison for precedent-based severity calibration',
+              ],
               color: T.orange,
-              tags: ['CLAUDE', 'ANTHROPIC', 'SONNET'],
+              tags: ['CLAUDE', 'ANTHROPIC', 'SONNET', 'NLR'],
             },
           ].map((f, i) => (
             <motion.div
               key={f.title}
-              initial={{ opacity: 0, y: 32 }}
+              initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-80px' }}
               transition={{ delay: i * 0.15, duration: 0.6 }}
               style={{
                 background: T.card, border: `1px solid ${f.color}25`,
-                borderRadius: 8, padding: '32px 28px',
+                borderRadius: 8, padding: '36px 30px',
                 backdropFilter: 'blur(12px)',
                 position: 'relative', overflow: 'hidden',
               }}
@@ -300,14 +369,50 @@ export default function Landing() {
                 position: 'absolute', top: 0, left: 0, right: 0, height: 2,
                 background: `linear-gradient(90deg, transparent, ${f.color}, transparent)`,
               }} />
-              <div style={{ fontSize: 32, marginBottom: 20 }}>{f.icon}</div>
+
+              {/* Step number watermark */}
+              <div style={{
+                fontSize: 48, fontWeight: 800, fontFamily: T.mono,
+                color: `${f.color}15`, lineHeight: 1,
+                position: 'absolute', top: 16, right: 20,
+              }}>{f.step}</div>
+
               <h3 style={{
-                fontSize: 11, fontFamily: T.mono, fontWeight: 700,
-                letterSpacing: 1.5, color: f.color, marginBottom: 14,
+                fontSize: 16, fontWeight: 700,
+                fontFamily: T.mono,
+                color: T.text0, marginBottom: 6,
+                letterSpacing: 0.3,
               }}>{f.title}</h3>
+
               <p style={{
-                color: T.text1, fontSize: 13, lineHeight: 1.7, marginBottom: 22,
+                fontSize: 10, fontFamily: T.mono,
+                color: f.color, letterSpacing: 0.5,
+                marginBottom: 16, textTransform: 'uppercase',
+              }}>{f.subtitle}</p>
+
+              <p style={{
+                color: T.text1, fontSize: 13, lineHeight: 1.75, marginBottom: 20,
               }}>{f.desc}</p>
+
+              <ul style={{
+                listStyle: 'none', padding: 0, margin: '0 0 22px 0',
+                display: 'flex', flexDirection: 'column', gap: 8,
+              }}>
+                {f.details.map((d, j) => (
+                  <li key={j} style={{
+                    fontSize: 11, color: T.text2, lineHeight: 1.5,
+                    paddingLeft: 14, position: 'relative',
+                  }}>
+                    <span style={{
+                      position: 'absolute', left: 0, top: 6,
+                      width: 4, height: 4, borderRadius: '50%',
+                      background: f.color, opacity: 0.6,
+                    }} />
+                    {d}
+                  </li>
+                ))}
+              </ul>
+
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {f.tags.map(tag => (
                   <span key={tag} style={{
@@ -324,7 +429,7 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ═══ DATA FLOW ═══ */}
+      {/* ═══ AGENT PIPELINE ═══ */}
       <section style={{
         padding: '100px 48px', background: T.bg0,
         position: 'relative', zIndex: 2,
@@ -336,9 +441,17 @@ export default function Landing() {
             color: T.blue, marginBottom: 16,
           }}>ARCHITECTURE</div>
           <h2 style={{
-            fontSize: 'clamp(22px, 3.5vw, 38px)', fontWeight: 800,
-            color: T.text0, letterSpacing: -0.5, marginBottom: 24,
-          }}>EVENT → GRAPH → SCORE → MAP</h2>
+            fontSize: 'clamp(22px, 3.5vw, 36px)', fontWeight: 700,
+            color: T.text0, letterSpacing: 0.3,
+            fontFamily: T.mono, marginBottom: 12,
+          }}>Agent Pipeline</h2>
+          <p style={{
+            fontSize: 12, color: T.text2, fontFamily: T.mono,
+            maxWidth: 600, margin: '0 auto', lineHeight: 1.6,
+          }}>
+            Eight specialized LangGraph nodes process each event sequentially,
+            from raw intake through to a complete executive risk report.
+          </p>
         </div>
 
         <motion.div
@@ -352,14 +465,14 @@ export default function Landing() {
           }}
         >
           {[
-            { step: '01', label: 'EVENT_INTAKE', desc: 'Ingest & classify' },
-            { step: '02', label: 'GEO_RESOLVER', desc: 'Map to countries' },
-            { step: '03', label: 'GRAPH_TRAVERSER', desc: 'Walk exposure edges' },
-            { step: '04', label: 'RISK_SCORER', desc: 'Claude AI scoring' },
-            { step: '05', label: 'HISTORICAL_REASONER', desc: 'Past event context' },
-            { step: '06', label: 'NEWS_ENRICHER', desc: 'Latest headlines' },
-            { step: '07', label: 'HEDGE_SUGGESTER', desc: 'Mitigation strategies' },
-            { step: '08', label: 'REPORT_GENERATOR', desc: 'Executive summary' },
+            { step: '01', label: 'EVENT_INTAKE', desc: 'Ingest, classify, and validate incoming event data' },
+            { step: '02', label: 'GEO_RESOLVER', desc: 'Map event to affected countries and regions' },
+            { step: '03', label: 'GRAPH_TRAVERSER', desc: 'Walk supply chain edges in SurrealDB graph' },
+            { step: '04', label: 'RISK_SCORER', desc: 'Claude AI produces per-company risk scores' },
+            { step: '05', label: 'HISTORICAL_REASONER', desc: 'Retrieve past event parallels for context' },
+            { step: '06', label: 'NEWS_ENRICHER', desc: 'Augment with latest breaking news headlines' },
+            { step: '07', label: 'HEDGE_SUGGESTER', desc: 'Generate risk mitigation strategies' },
+            { step: '08', label: 'REPORT_GENERATOR', desc: 'Compile executive summary and risk brief' },
           ].map((node, i) => (
             <motion.div
               key={node.label}
@@ -370,9 +483,9 @@ export default function Landing() {
               style={{
                 background: 'rgba(29,78,216,0.08)',
                 border: '1px solid rgba(29,78,216,0.25)',
-                borderRadius: 4, padding: '10px 14px',
-                display: 'flex', alignItems: 'center', gap: 10,
-                minWidth: 200,
+                borderRadius: 4, padding: '12px 16px',
+                display: 'flex', alignItems: 'center', gap: 12,
+                minWidth: 220,
               }}
             >
               <span style={{
@@ -386,6 +499,7 @@ export default function Landing() {
                 }}>{node.label}</div>
                 <div style={{
                   fontSize: 8, fontFamily: T.mono, color: T.text3,
+                  lineHeight: 1.4,
                 }}>{node.desc}</div>
               </div>
             </motion.div>
@@ -404,20 +518,21 @@ export default function Landing() {
           color: T.blue, marginBottom: 16,
         }}>BUILT WITH</div>
         <h2 style={{
-          fontSize: 'clamp(22px, 3.5vw, 38px)', fontWeight: 800,
-          color: T.text0, letterSpacing: -0.5, marginBottom: 48,
-        }}>TECHNOLOGY STACK</h2>
+          fontSize: 'clamp(22px, 3.5vw, 36px)', fontWeight: 700,
+          color: T.text0, letterSpacing: 0.3,
+          fontFamily: T.mono, marginBottom: 48,
+        }}>Technology Stack</h2>
 
         <div style={{
           display: 'flex', flexWrap: 'wrap', gap: 16,
           justifyContent: 'center', maxWidth: 800, margin: '0 auto 64px',
         }}>
           {[
-            { name: 'Claude', desc: 'Anthropic AI for risk synthesis', color: T.orange },
-            { name: 'SurrealDB', desc: 'Multi-model graph database', color: T.blue },
-            { name: 'LangGraph', desc: 'Agent orchestration framework', color: T.green },
-            { name: 'React + Vite', desc: 'Frontend + build tooling', color: T.text1 },
-            { name: 'react-globe.gl', desc: '3D globe visualization', color: T.yellow },
+            { name: 'Claude', desc: 'Anthropic AI for risk synthesis and natural language reasoning', color: T.orange },
+            { name: 'SurrealDB', desc: 'Multi-model graph database for supply chain relationships', color: T.blue },
+            { name: 'LangGraph', desc: 'Stateful agent orchestration framework for pipeline control', color: T.green },
+            { name: 'React + Vite', desc: 'Frontend rendering and fast HMR build tooling', color: T.text1 },
+            { name: 'react-globe.gl', desc: 'WebGL 3D globe visualization with real-time data overlays', color: T.yellow },
           ].map(({ name, desc, color }) => (
             <motion.div
               key={name}
@@ -435,12 +550,12 @@ export default function Landing() {
               }}>{name}</div>
               <div style={{
                 fontSize: 9, color: T.text2, fontFamily: T.mono,
+                lineHeight: 1.5,
               }}>{desc}</div>
             </motion.div>
           ))}
         </div>
 
-        {/* Bottom CTA */}
         <motion.button
           onClick={handleEnterDashboard}
           whileHover={{ scale: 1.04, boxShadow: `0 0 50px ${T.blue}60` }}
@@ -454,17 +569,16 @@ export default function Landing() {
             transition: 'all 0.2s',
           }}
         >
-          LAUNCH INTELLIGENCE DASHBOARD →
+          LAUNCH INTELLIGENCE DASHBOARD &rarr;
         </motion.button>
 
-        {/* Footer */}
         <div style={{
           marginTop: 80, paddingTop: 32,
           borderTop: `1px solid ${T.border}`,
           fontSize: 8, fontFamily: T.mono, letterSpacing: 2,
           color: T.text4,
         }}>
-          RISKTERRAIN · LONDON HACKATHON 2025 · BUILT WITH CLAUDE + SURREALDB + LANGGRAPH
+          RISKTERRAIN &middot; LONDON HACKATHON 2025 &middot; BUILT WITH CLAUDE + SURREALDB + LANGGRAPH
         </div>
       </section>
     </motion.div>
