@@ -1,5 +1,5 @@
 """
-Events + Graph QA Routes — Fix #36 #37 #38 #86 #87 #88 #89 #90 #94
+Events + Graph QA Routes -- Fix #36 #37 #38 #86 #87 #88 #89 #90 #94
 """
 
 import re
@@ -21,7 +21,7 @@ _analyze_timestamps: list[float] = []
 MAX_ANALYZE_PER_MINUTE = 10
 
 
-# ── Request/Response Models — Fix #89 ─────────────────────────────────────
+# -- Request/Response Models -- Fix #89 -------------------------------------
 
 class AnalyzeRequest(BaseModel):
     input: str = Field(..., min_length=5, max_length=2000)  # Fix #88
@@ -54,7 +54,7 @@ class GraphQueryResponse(BaseModel):  # Fix #89 #90
     note: Optional[str] = None  # Fix #90: excluded when None via response_model_exclude_none
 
 
-# ── Event Endpoints ───────────────────────────────────────────────────────
+# -- Event Endpoints -------------------------------------------------------
 
 @router.get("/events", response_model=list[EventResponse], tags=["events"])
 def get_events():
@@ -66,7 +66,7 @@ def get_events():
 @router.get("/events/{event_id}", response_model=EventResponse, tags=["events"])
 def get_event(event_id: str):
     # Fix #36: validate ID format to prevent SurrealQL injection
-    if not re.match(r"^[a-zA-Z0-9_:⟨⟩-]+$", event_id):
+    if not re.match(r"^[a-zA-Z0-9_:-]+$", event_id):
         raise HTTPException(status_code=400, detail="Invalid event ID format")
     db = get_db()
     if not event_id.startswith("event:"):
@@ -98,7 +98,7 @@ def analyze_event(request: AnalyzeRequest):
     return run_pipeline(raw_input=clean_input, source=request.source)
 
 
-# ── Graph QA Endpoint — Fix #94: separate tag ────────────────────────────
+# -- Graph QA Endpoint -- Fix #94: separate tag ----------------------------
 
 @router.post("/graph/query", response_model=GraphQueryResponse,
              response_model_exclude_none=True, tags=["graph"])  # Fix #90 #94

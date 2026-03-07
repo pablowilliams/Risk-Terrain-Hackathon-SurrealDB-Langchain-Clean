@@ -1,6 +1,6 @@
 from __future__ import annotations
 """
-SurrealDB Connection Manager — Fix #6 #7 #54 #55 #56
+SurrealDB Connection Manager -- Fix #6 #7 #54 #55 #56
 """
 
 import time
@@ -23,11 +23,21 @@ def connect(max_retries: int = 3) -> Surreal:
         try:
             db = Surreal(url)
 
-            # Embedded mode (mem://, file://) doesn't need signin — just use()
+            # Embedded mode (mem://, file://) doesn't need signin -- just use()
             is_embedded = url.startswith("mem://") or url.startswith("file://")
+            is_cloud = url.startswith("wss://")
             if is_embedded:
                 db.use(settings.SURREAL_NAMESPACE, settings.SURREAL_DATABASE)
                 logger.info("Embedded mode: skipping signin")
+            elif is_cloud:
+                # SurrealDB Cloud: try token first, then username/password
+                if settings.SURREAL_TOKEN:
+                    db.authenticate(settings.SURREAL_TOKEN)
+                    logger.info("Cloud mode: authenticated with token")
+                else:
+                    db.signin({"username": settings.SURREAL_USER, "password": settings.SURREAL_PASS})
+                    logger.info("Cloud mode: signed in with credentials")
+                db.use(settings.SURREAL_NAMESPACE, settings.SURREAL_DATABASE)
             else:
                 db.signin({"username": settings.SURREAL_USER, "password": settings.SURREAL_PASS})
                 db.use(settings.SURREAL_NAMESPACE, settings.SURREAL_DATABASE)
@@ -114,5 +124,5 @@ def run_schema():
         try:
             db.query(stmt + ";")
         except Exception as e:
-            logger.warning(f"Schema statement failed (may already exist): {stmt[:60]}... → {e}")
+            logger.warning(f"Schema statement failed (may already exist): {stmt[:60]}... -> {e}")
     logger.info(f"Schema verified ({len(_SCHEMA_STATEMENTS)} statements)")

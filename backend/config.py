@@ -1,5 +1,5 @@
 """
-RiskTerrain Configuration — Fix #17 #44 #97 #98
+RiskTerrain Configuration -- Fix #17 #44 #97 #98
 """
 
 from pydantic_settings import BaseSettings, SettingsConfigDict  # Fix #98
@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     SURREAL_DATABASE: str = Field(default="main")
     SURREAL_USER: str = Field(default="root")
     SURREAL_PASS: str = Field(default="root")
+    SURREAL_TOKEN: str = Field(default="")  # JWT token for SurrealDB Cloud
 
     ANTHROPIC_API_KEY: str = Field(default="")  # Validated below
     NEWSAPI_KEY: str = Field(default="")
@@ -30,7 +31,7 @@ class Settings(BaseSettings):
         if not v or v == "sk-ant-...":
             import logging
             logging.getLogger("riskterrain.config").warning(
-                "ANTHROPIC_API_KEY is empty — Claude calls will fail. Set it in .env"
+                "ANTHROPIC_API_KEY is empty -- Claude calls will fail. Set it in .env"
             )
         return v
 

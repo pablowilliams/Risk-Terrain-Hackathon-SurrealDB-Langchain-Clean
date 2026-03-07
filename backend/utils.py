@@ -1,6 +1,6 @@
 from __future__ import annotations
 """
-Shared Utilities — Fix #28 #29 #60-62 #63 #85
+Shared Utilities -- Fix #28 #29 #60-62 #63 #85
 Central place for Claude API helpers, retry logic, code-fence stripping, request IDs.
 """
 

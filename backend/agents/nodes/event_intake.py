@@ -1,6 +1,6 @@
 from __future__ import annotations
 """
-Node 1: event_intake — Fix #9 #28 #57 #58 #60
+Node 1: event_intake -- Fix #9 #28 #57 #58 #60
 """
 
 import json
@@ -26,7 +26,7 @@ Respond ONLY with valid JSON.
 Severity: 5=catastrophic 4=major 3=significant 2=moderate 1=minor
 
 Example input: "US announces new semiconductor export controls targeting China"
-Example output: {"event_type": "geopolitical", "title": "US Semiconductor Export Controls — China", "description": "The US government has announced sweeping new restrictions on semiconductor equipment exports to China, targeting EUV lithography and advanced chip manufacturing. This could disrupt global chip supply chains and affect companies with China revenue exposure.", "severity": 4, "lat": 39.9, "lng": 116.4}"""
+Example output: {"event_type": "geopolitical", "title": "US Semiconductor Export Controls -- China", "description": "The US government has announced sweeping new restrictions on semiconductor equipment exports to China, targeting EUV lithography and advanced chip manufacturing. This could disrupt global chip supply chains and affect companies with China revenue exposure.", "severity": 4, "lat": 39.9, "lng": 116.4}"""
 
 
 def _try_parse_usgs(raw: str) -> dict | None:
@@ -49,7 +49,7 @@ def _try_parse_usgs(raw: str) -> dict | None:
             sev, impact = 2, "minor local effects"
         return {
             "event_type": "natural_disaster",
-            "title": f"M{mag:.1f} Earthquake — {place}",
+            "title": f"M{mag:.1f} Earthquake -- {place}",
             "description": f"A magnitude {mag:.1f} earthquake struck {place}, potentially causing {impact}.",
             "severity": sev,
             "event_lat": float(coords[1]),

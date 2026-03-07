@@ -1,5 +1,5 @@
 """
-Node 4: risk_scorer — Fix #18 #25 #26 #62 #93
+Node 4: risk_scorer -- Fix #18 #25 #26 #62 #93
 """
 
 import json
@@ -15,17 +15,17 @@ SCORING_PROMPT = """You are a senior financial risk analyst scoring S&P 500 expo
 You receive: event details, supply chain graph paths (with weights), and historical events.
 
 SCORING RUBRIC:
-  0.90-1.00: Catastrophic — sole-source supplier in epicentre
-  0.70-0.89: Major — primary supplier affected
-  0.50-0.69: Moderate — secondary supplier, partial revenue
-  0.30-0.49: Mild — tertiary dependency
-  0.10-0.29: Marginal — weak correlation
+  0.90-1.00: Catastrophic -- sole-source supplier in epicentre
+  0.70-0.89: Major -- primary supplier affected
+  0.50-0.69: Moderate -- secondary supplier, partial revenue
+  0.30-0.49: Mild -- tertiary dependency
+  0.10-0.29: Marginal -- weak correlation
 
 RULES:
-  - Ground scores in supply chain weights (weight=0.90 → score≥0.85)
+  - Ground scores in supply chain weights (weight=0.90 -> score>=0.85)
   - 2-HOP companies score LOWER than 1-hop
-  - Sector peers (weight≤0.30) score ≤0.40
-  - Only companies with score≥0.15
+  - Sector peers (weight<=0.30) score <=0.40
+  - Only companies with score>=0.15
   - Maximum 15 companies
 
 Respond ONLY with valid JSON:

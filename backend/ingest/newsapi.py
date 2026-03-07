@@ -1,5 +1,5 @@
 """
-NewsAPI Scanner — Fix #23 #31 #80 #99
+NewsAPI Scanner -- Fix #23 #31 #80 #99
 """
 
 import time

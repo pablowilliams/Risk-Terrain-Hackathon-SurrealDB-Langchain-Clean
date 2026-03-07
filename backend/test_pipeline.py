@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-RiskTerrain E2E Verification — Fix #67 #68 #69 #70
+RiskTerrain E2E Verification -- Fix #67 #68 #69 #70
 Usage: python test_pipeline.py [BASE_URL]
 """
 
@@ -12,8 +12,8 @@ BASE = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8000"
 # Auto-detect versioned or unversioned
 PREFIX = "/api/v1"
 
-P = "\033[92m✓\033[0m"
-F = "\033[91m✗\033[0m"
+P = "\033[92m[OK]\033[0m"
+F = "\033[91m[FAIL]\033[0m"
 results = []
 
 
@@ -29,7 +29,7 @@ def test(name, fn):
 
 def main():
     print(f"\n{'='*60}")
-    print(f"  RiskTerrain E2E — {BASE}")
+    print(f"  RiskTerrain E2E -- {BASE}")
     print(f"{'='*60}\n")
 
     # Fix #67: longer timeout for cold starts
@@ -94,7 +94,7 @@ def main():
         print(f"       {len(evts)} events persisted")
     test("5. Event persistence", t5)
 
-    # Fix #69: this test is meaningful regardless of t4 — it tests the pipeline independently
+    # Fix #69: this test is meaningful regardless of t4 -- it tests the pipeline independently
     def t6():
         r = c.post(f"{PREFIX}/events/analyze", json={
             "input": "US Commerce Dept announces export controls on semiconductor equipment to China, targeting EUV lithography.",
@@ -103,7 +103,7 @@ def main():
         assert r.status_code == 200
         d = r.json()
         assert len(d.get("risks", {})) >= 2
-        print(f"       {d.get('title')} — {len(d['risks'])} risks")
+        print(f"       {d.get('title')} -- {len(d['risks'])} risks")
     test("6. Pipeline: Export controls (2nd event)", t6)
 
     def t7():

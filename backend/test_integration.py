@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-RiskTerrain Integration Test — Runs OFFLINE (no external services needed except Claude)
+RiskTerrain Integration Test -- Runs OFFLINE (no external services needed except Claude)
 Boots SurrealDB in-memory, seeds data, runs the pipeline, verifies graph traversal.
 
 Usage:
@@ -16,12 +16,12 @@ import logging
 
 # Setup path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-logging.basicConfig(level=logging.INFO, format="%(asctime)s │ %(name)-30s │ %(message)s", datefmt="%H:%M:%S")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(name)-30s | %(message)s", datefmt="%H:%M:%S")
 logger = logging.getLogger("test")
 
-P = "\033[92m✓ PASS\033[0m"
-F = "\033[91m✗ FAIL\033[0m"
-W = "\033[93m⚠ SKIP\033[0m"
+P = "\033[92m[OK] PASS\033[0m"
+F = "\033[91m[FAIL]\033[0m"
+W = "\033[93m[SKIP]\033[0m"
 results = []
 no_llm = "--no-llm" in sys.argv
 
@@ -45,7 +45,7 @@ def main():
     print(f"  RiskTerrain Integration Test {'(no-LLM mode)' if no_llm else '(full)'}")
     print(f"{'='*65}\n")
 
-    # ── 1. Connect to SurrealDB ───────────────────────────────────────
+    # -- 1. Connect to SurrealDB ---------------------------------------
     def t1():
         # Force embedded mode for integration test
         import config
@@ -57,13 +57,13 @@ def main():
         assert result is not None, "Query returned None"
     test("SurrealDB connection (embedded mem://)", t1)
 
-    # ── 2. Schema DDL ─────────────────────────────────────────────────
+    # -- 2. Schema DDL -------------------------------------------------
     def t2():
         from db.surreal import run_schema
         run_schema()
     test("Schema DDL (4 tables)", t2)
 
-    # ── 3. Seed companies ─────────────────────────────────────────────
+    # -- 3. Seed companies ---------------------------------------------
     def t3():
         from db.seed import seed_companies, SP500_COMPANIES
         seed_companies()
@@ -85,7 +85,7 @@ def main():
         print(f"       {count} companies in DB")
     test("Seed companies (154)", t3)
 
-    # ── 4. Verify TSMC has country=Taiwan ─────────────────────────────
+    # -- 4. Verify TSMC has country=Taiwan -----------------------------
     def t4():
         from db.surreal import get_db
         db = get_db()
@@ -94,10 +94,10 @@ def main():
         assert rows, "company:TSMC not found"
         country = rows[0].get("country", "MISSING")
         assert country == "Taiwan", f"TSMC country={country}, expected Taiwan"
-        print(f"       TSMC country={country} ✓")
+        print(f"       TSMC country={country} [OK]")
     test("TSMC country = Taiwan (Fix #1-3)", t4)
 
-    # ── 5. Seed supply chain edges ────────────────────────────────────
+    # -- 5. Seed supply chain edges ------------------------------------
     def t5():
         from db.seed import seed_supply_chain
         seed_supply_chain()
@@ -109,7 +109,7 @@ def main():
         print(f"       {count} supply chain edges")
     test("Seed supply chain (~90 RELATE edges)", t5)
 
-    # ── 6. Verify TSMC→NVDA graph edge ────────────────────────────────
+    # -- 6. Verify TSMC->NVDA graph edge --------------------------------
     def t6():
         from db.surreal import get_db
         db = get_db()
@@ -121,12 +121,12 @@ def main():
         # Check weight
         nvda_edge = [r for r in rows if _ticker(r.get("to_rec", "")) == "NVDA"]
         weight = float(nvda_edge[0].get("weight", 0))
-        assert weight >= 0.85, f"TSMC→NVDA weight={weight}, expected ≥0.85"
-        print(f"       TSMC→NVDA edge: weight={weight}, relationship={nvda_edge[0].get('relationship')}")
+        assert weight >= 0.85, f"TSMC->NVDA weight={weight}, expected >=0.85"
+        print(f"       TSMC->NVDA edge: weight={weight}, relationship={nvda_edge[0].get('relationship')}")
         print(f"       TSMC supplies: {customers}")
-    test("TSMC→NVDA graph edge (weight=0.90)", t6)
+    test("TSMC->NVDA graph edge (weight=0.90)", t6)
 
-    # ── 7. Verify reverse edge (NVDA downstream) ─────────────────────
+    # -- 7. Verify reverse edge (NVDA downstream) ---------------------
     def t7():
         from db.surreal import get_db
         db = get_db()
@@ -135,9 +135,9 @@ def main():
         customers = [_ticker(r.get("to_rec", "")) for r in rows]
         assert "MSFT" in customers, f"MSFT not in NVDA customers: {customers}"
         print(f"       NVDA supplies: {customers}")
-    test("NVDA→MSFT graph edge (2nd-order path)", t7)
+    test("NVDA->MSFT graph edge (2nd-order path)", t7)
 
-    # ── 8. Graph traversal (Taiwan earthquake scenario) ───────────────
+    # -- 8. Graph traversal (Taiwan earthquake scenario) ---------------
     def t8():
         from db.surreal import get_db
         db = get_db()
@@ -161,10 +161,10 @@ def main():
         print(f"       Taiwan companies: {taiwan}")
         print(f"       TSMC 1-hop: {hop1}")
         print(f"       NVDA 2-hop: {hop2}")
-        print(f"       Full path: Taiwan→TSMC→NVDA→MSFT ✓")
-    test("Graph traversal: Taiwan→TSMC→NVDA→MSFT path", t8)
+        print(f"       Full path: Taiwan->TSMC->NVDA->MSFT [OK]")
+    test("Graph traversal: Taiwan->TSMC->NVDA->MSFT path", t8)
 
-    # ── 9. Event intake (USGS JSON parse) ─────────────────────────────
+    # -- 9. Event intake (USGS JSON parse) -----------------------------
     def t9():
         from agents.nodes.event_intake import event_intake
         usgs_json = json.dumps({
@@ -179,7 +179,7 @@ def main():
         print(f"       {result['title']} (sev={result['severity']})")
     test("Event intake: USGS JSON parse (no LLM)", t9)
 
-    # ── 10. Event intake (Claude classification) ──────────────────────
+    # -- 10. Event intake (Claude classification) ----------------------
     def t10():
         from agents.nodes.event_intake import event_intake
         result = event_intake({
@@ -191,13 +191,13 @@ def main():
         print(f"       {result.get('title')} (sev={result.get('severity')})")
     test("Event intake: Claude classification", t10, skip_if_no_llm=True)
 
-    # ── 11. Geo resolver ──────────────────────────────────────────────
+    # -- 11. Geo resolver ----------------------------------------------
     def t11():
         from agents.nodes.geo_resolver import geo_resolver
         result = geo_resolver({
             "raw_input": "",
             "event_type": "natural_disaster",
-            "title": "M7.4 Earthquake — Taiwan",
+            "title": "M7.4 Earthquake -- Taiwan",
             "description": "Major earthquake strikes Hualien County, Taiwan. TSMC pauses.",
             "severity": 5,
         })
@@ -207,7 +207,7 @@ def main():
         print(f"       Sectors: {result['affected_sectors']}")
     test("Geo resolver: Taiwan earthquake", t11, skip_if_no_llm=True)
 
-    # ── 12. Graph traverser node ──────────────────────────────────────
+    # -- 12. Graph traverser node --------------------------------------
     def t12():
         from agents.nodes.graph_traverser import graph_traverser
         result = graph_traverser({
@@ -225,7 +225,7 @@ def main():
         nvda = [c for c in exposed if c.get("ticker") == "NVDA"]
         if nvda:
             assert nvda[0].get("max_weight", 0) >= 0.8, f"NVDA weight={nvda[0].get('max_weight')}"
-            print(f"       NVDA weight={nvda[0]['max_weight']:.2f} ✓")
+            print(f"       NVDA weight={nvda[0]['max_weight']:.2f} [OK]")
         else:
             # NVDA might be found via 1-hop supply chain
             paths = result.get("supply_chain_paths", [])
@@ -235,9 +235,9 @@ def main():
 
         print(f"       {len(exposed)} exposed, {len(result.get('supply_chain_paths', []))} paths")
         print(f"       Top 8: {tickers[:8]}")
-    test("Graph traverser: Taiwan→exposed companies", t12)
+    test("Graph traverser: Taiwan->exposed companies", t12)
 
-    # ── 13. Full pipeline (end-to-end) ────────────────────────────────
+    # -- 13. Full pipeline (end-to-end) --------------------------------
     def t13():
         from agents.pipeline import run_pipeline
         start = time.time()
@@ -261,10 +261,10 @@ def main():
         print(f"       Top 5: {top5}")
 
         if nvda_score < 0.5:
-            print(f"       ⚠ NVDA score low — check graph traversal")
+            print(f"       [WARN] NVDA score low -- check graph traversal")
     test("FULL PIPELINE: Taiwan earthquake E2E", t13, skip_if_no_llm=True)
 
-    # ── 14. Event persistence ─────────────────────────────────────────
+    # -- 14. Event persistence -----------------------------------------
     def t14():
         from db.surreal import get_db
         db = get_db()
@@ -275,10 +275,10 @@ def main():
         assert evt.get("risks") and len(evt["risks"]) >= 3
         assert evt.get("created_at", "").endswith("Z"), f"created_at doesn't end with Z: {evt.get('created_at')}"
         print(f"       Persisted: {evt.get('title','?')[:50]}")
-        print(f"       created_at ends with Z: ✓")
+        print(f"       created_at ends with Z: [OK]")
     test("Event persisted to SurrealDB (Write 1)", t14, skip_if_no_llm=True)
 
-    # ── 15. Risk scores persisted ─────────────────────────────────────
+    # -- 15. Risk scores persisted -------------------------------------
     def t15():
         from db.surreal import get_db
         db = get_db()
@@ -288,19 +288,19 @@ def main():
         print(f"       {count} risk_score records (Write 2)")
     test("Risk scores persisted (Write 2)", t15, skip_if_no_llm=True)
 
-    # ── Summary ───────────────────────────────────────────────────────
+    # -- Summary -------------------------------------------------------
     passed = sum(results)
     total = len(results)
     print(f"\n{'='*65}")
     color = "\033[92m" if passed == total else ("\033[93m" if passed >= total * 0.7 else "\033[91m")
     print(f"  {color}{passed}/{total} PASSED\033[0m")
     if passed == total:
-        print(f"  \033[92m🎉 Ready for demo!\033[0m")
+        print(f"  \033[92mReady for demo!\033[0m")
     print(f"{'='*65}\n")
     sys.exit(0 if passed == total else 1)
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────
+# -- Helpers ---------------------------------------------------------------
 
 def _extract(result) -> list[dict]:
     if not isinstance(result, list):

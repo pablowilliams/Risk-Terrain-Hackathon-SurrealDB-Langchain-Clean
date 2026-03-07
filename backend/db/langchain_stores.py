@@ -1,6 +1,6 @@
 from __future__ import annotations
 """
-LangChain × SurrealDB Integration Hub — Fix #5 #19 #39 #40 #64 #65 #66 #92
+LangChain x SurrealDB Integration Hub -- Fix #5 #19 #39 #40 #64 #65 #66 #92
 """
 
 __all__ = [
@@ -38,19 +38,19 @@ def init_langchain_stores(db_connection):
     ]:
         try:
             _vector_store = attempt_fn()
-            logger.info("  ✓ SurrealDBVectorStore initialised")
+            logger.info("  [OK] SurrealDBVectorStore initialised")
             break
         except (TypeError, Exception) as e:
             logger.debug(f"  VectorStore constructor attempt failed: {e}")
     else:
-        logger.error("  ✗ SurrealDBVectorStore: all constructor signatures failed")
+        logger.error("  [FAIL] SurrealDBVectorStore: all constructor signatures failed")
 
     from langchain_surrealdb.experimental.surrealdb_graph import SurrealDBGraph
     try:
         _graph_store = SurrealDBGraph(db_connection)
-        logger.info("  ✓ SurrealDBGraph initialised")
+        logger.info("  [OK] SurrealDBGraph initialised")
     except Exception as e:
-        logger.error(f"  ✗ SurrealDBGraph: {e}")
+        logger.error(f"  [FAIL] SurrealDBGraph: {e}")
 
     logger.info("langchain-surrealdb ready.")
 
@@ -81,7 +81,7 @@ def _init_embeddings():
     return _FallbackEmbeddings()
 
 
-# ── VECTOR STORE ──────────────────────────────────────────────────────────────
+# -- VECTOR STORE --------------------------------------------------------------
 
 def get_vector_store():
     return _vector_store
@@ -102,7 +102,7 @@ def add_event_to_vector_store(event_id: str, title: str, description: str,
     try:
         doc = Document(page_content=page_content, metadata=doc_metadata)
         # Fix #40: sanitise doc ID (remove colons from SurrealDB record IDs)
-        safe_id = str(event_id).replace(":", "_").replace("⟨", "").replace("⟩", "")
+        safe_id = str(event_id).replace(":", "_").replace("\u27e8", "").replace("\u27e9", "")
         _vector_store.add_documents([doc], ids=[safe_id])
         logger.info(f"Event embedded in VectorStore ({len(page_content)} chars)")
     except Exception as e:
@@ -128,14 +128,14 @@ def search_similar_events(query: str, k: int = 5, score_threshold: float = 0.0) 
         # Fix #39: sort by score descending (works for both distance and similarity)
         # Most vector stores return similarity (higher=better), but if distance, caller can adjust
         similar.sort(key=lambda x: x["similarity_score"], reverse=True)
-        logger.info(f"Vector search: '{query[:40]}...' → {len(similar)} results")
+        logger.info(f"Vector search: '{query[:40]}...' -> {len(similar)} results")
         return similar
     except Exception as e:
         logger.warning(f"Vector search failed: {e}")
         return []
 
 
-# ── GRAPH STORE ───────────────────────────────────────────────────────────────
+# -- GRAPH STORE ---------------------------------------------------------------
 
 def get_graph_store():
     return _graph_store
@@ -173,7 +173,7 @@ def get_graph_schema() -> str:
         return "Schema unavailable"
 
 
-# ── GRAPH QA CHAIN ────────────────────────────────────────────────────────────
+# -- GRAPH QA CHAIN ------------------------------------------------------------
 
 def create_graph_qa_chain(llm=None):
     """Fix #92: cache the chain instance."""

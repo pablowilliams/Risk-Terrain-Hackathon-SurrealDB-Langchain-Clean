@@ -1,5 +1,5 @@
 """
-RiskState — Fix #50 #51 #52: proper typing with Required fields.
+RiskState -- Fix #50 #51 #52: proper typing with Required fields.
 """
 
 from typing import TypedDict, Required

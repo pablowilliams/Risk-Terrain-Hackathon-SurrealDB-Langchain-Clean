@@ -1,5 +1,5 @@
 """
-Node 2: geo_resolver — Fix #29 #59 #61
+Node 2: geo_resolver -- Fix #29 #59 #61
 """
 
 import logging
@@ -20,14 +20,14 @@ Energy, Financials, Healthcare, Industrials, Materials, Utilities, Real Estate
 Return: {"affected_countries": ["Country1"], "affected_sectors": ["Sector1"]}
 
 Include cascading geographic effects:
-- Taiwan event → Taiwan, China, Japan, South Korea
-- US-China sanctions → USA, China, Taiwan, South Korea
-- Fed rate decision → USA, Emerging Markets, Eurozone
-- Middle East conflict → affected nations + global Energy"""
+- Taiwan event -> Taiwan, China, Japan, South Korea
+- US-China sanctions -> USA, China, Taiwan, South Korea
+- Fed rate decision -> USA, Emerging Markets, Eurozone
+- Middle East conflict -> affected nations + global Energy"""
 
 
 def geo_resolver(state: RiskState) -> dict:
-    event_desc = f"{state.get('title', '')} — {state.get('description', '')}"
+    event_desc = f"{state.get('title', '')} -- {state.get('description', '')}"
     severity = state.get("severity", 3)
 
     logger.info(f"geo_resolver: '{state.get('title', '')}'")

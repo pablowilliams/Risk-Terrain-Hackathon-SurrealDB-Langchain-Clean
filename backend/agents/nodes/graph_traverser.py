@@ -1,7 +1,7 @@
 from __future__ import annotations
 """
-Node 3: graph_traverser — Fix #10 #11 #21 #22 #47
-HACKATHON ② + ③: Knowledge graph walk + SurrealDBVectorStore hybrid retrieval.
+Node 3: graph_traverser -- Fix #10 #11 #21 #22 #47
+HACKATHON (2) + (3): Knowledge graph walk + SurrealDBVectorStore hybrid retrieval.
 """
 
 import logging
@@ -23,9 +23,9 @@ def graph_traverser(state: RiskState) -> dict:
     exposed: dict[str, dict] = {}
     paths: list[str] = []
 
-    # ═══════════════════════════════════════════════════════════════════
+    # ===================================================================
     # PHASE 1: SURREALDB KNOWLEDGE GRAPH
-    # ═══════════════════════════════════════════════════════════════════
+    # ===================================================================
 
     # Step A: Direct geographic exposure
     direct_ids = []
@@ -43,7 +43,7 @@ def graph_traverser(state: RiskState) -> dict:
             paths.append(p)
         logger.info(f"Step A: {len(direct_ids)} direct geographic")
 
-    # Step B: 1-hop DOWNSTREAM — who depends on affected companies?
+    # Step B: 1-hop DOWNSTREAM -- who depends on affected companies?
     # Fix #10 #11: parameterised queries on supplies table, extract ticker from record link
     for sid in direct_ids[:20]:
         rows = _q(db, f"SELECT * FROM supplies WHERE in = company:{sid}")
@@ -55,12 +55,12 @@ def graph_traverser(state: RiskState) -> dict:
             if not to_t or to_t == sid:
                 continue
 
-            p = f"{sid} →[{rel}, w={w:.2f}]→ {to_t}: {desc}"
+            p = f"{sid} ->[{rel}, w={w:.2f}]-> {to_t}: {desc}"
             paths.append(p)
             # Fix #22: upgrade weight if already exists with lower weight
             _upsert_exposed(exposed, to_t, "supply_chain_1hop", w, p)
 
-    # Step C: 1-hop UPSTREAM — who supplies the affected companies?
+    # Step C: 1-hop UPSTREAM -- who supplies the affected companies?
     for sid in direct_ids[:20]:
         rows = _q(db, f"SELECT * FROM supplies WHERE out = company:{sid}")
         for edge in rows:
@@ -71,11 +71,11 @@ def graph_traverser(state: RiskState) -> dict:
             if not from_t or from_t == sid:
                 continue
 
-            p = f"{from_t} →[{rel}, w={w:.2f}]→ {sid} (UPSTREAM): {desc}"
+            p = f"{from_t} ->[{rel}, w={w:.2f}]-> {sid} (UPSTREAM): {desc}"
             paths.append(p)
             _upsert_exposed(exposed, from_t, "supply_chain_upstream", w * 0.7, p)
 
-    # Step D: 2-hop DOWNSTREAM — second-order effects
+    # Step D: 2-hop DOWNSTREAM -- second-order effects
     first_hop = [t for t, v in exposed.items() if v.get("exposure_type") == "supply_chain_1hop"]
     for ft in first_hop[:15]:
         ft_id = safe_surreal_id(ft)
@@ -89,11 +89,11 @@ def graph_traverser(state: RiskState) -> dict:
             rel = edge.get("relationship", "supplies")
             eff = round(parent_w * w2, 3)
 
-            p = f"2-HOP: ...→ {ft} →[{rel}, w={w2:.2f}]→ {to_t} (eff={eff:.3f})"
+            p = f"2-HOP: ...-> {ft} ->[{rel}, w={w2:.2f}]-> {to_t} (eff={eff:.3f})"
             paths.append(p)
             _upsert_exposed(exposed, to_t, "supply_chain_2hop", eff, p)
 
-    # Step E: Sector correlation — Fix #21: cap at 10 to avoid drowning real signals
+    # Step E: Sector correlation -- Fix #21: cap at 10 to avoid drowning real signals
     if sectors:
         rows = _q(db, "SELECT ticker, name, sector FROM company WHERE sector IN $s AND country = 'USA' ORDER BY mc DESC LIMIT 10", {"s": sectors})
         for c in rows:
@@ -106,7 +106,7 @@ def graph_traverser(state: RiskState) -> dict:
     graph_count = len(exposed)
     logger.info(f"Phase 1: {graph_count} companies, {len(paths)} paths")
 
-    # ── Enrich: populate names for graph-found companies ──────────────
+    # -- Enrich: populate names for graph-found companies --
     nameless = [t for t, v in exposed.items() if not v.get("name")]
     if nameless:
         for ticker in nameless[:30]:
@@ -117,9 +117,9 @@ def graph_traverser(state: RiskState) -> dict:
                 exposed[ticker]["sector"] = rows[0].get("sector", "")
         logger.info(f"Enriched {len(nameless)} company names")
 
-    # ═══════════════════════════════════════════════════════════════════
+    # ===================================================================
     # PHASE 2: VECTOR RETRIEVAL via SurrealDBVectorStore
-    # ═══════════════════════════════════════════════════════════════════
+    # ===================================================================
     similar_events = search_similar_events(query=f"{title}. {description}", k=5)
 
     if not similar_events:
@@ -142,7 +142,7 @@ def graph_traverser(state: RiskState) -> dict:
     }
 
 
-# ── HELPERS ───────────────────────────────────────────────────────────────────
+# -- HELPERS --
 
 def _upsert_exposed(exposed: dict, ticker: str, exp_type: str, weight: float, path: str):
     """Fix #22: insert or upgrade if new weight is higher."""
@@ -157,11 +157,11 @@ def _upsert_exposed(exposed: dict, ticker: str, exp_type: str, weight: float, pa
 
 
 def _q(db, surql: str, params: dict | None = None) -> list[dict]:
-    """Robust row extraction — handles both embedded (flat) and server (wrapped) formats."""
+    """Robust row extraction -- handles both embedded (flat) and server (wrapped) formats."""
     try:
         result = db.query(surql, params) if params else db.query(surql)
     except Exception as e:
-        logger.debug(f"Query failed: {surql[:80]}... → {e}")
+        logger.debug(f"Query failed: {surql[:80]}... -> {e}")
         return []
     if not isinstance(result, list):
         return [result] if isinstance(result, dict) else []

@@ -1,5 +1,5 @@
 """
-Node 6: report_generator — Fix #16 #43
+Node 6: report_generator -- Fix #16 #43
 3 writes: document + risk_scores + vector embedding.
 """
 
@@ -29,7 +29,7 @@ def report_generator(state: RiskState) -> dict:
         "affected_sectors": state.get("affected_sectors", []),
         "lat": state.get("event_lat", 0.0),
         "lng": state.get("event_lng", 0.0),
-        # Fix #43: pass ISO string — SurrealDB auto-casts to datetime
+        # Fix #43: pass ISO string -- SurrealDB auto-casts to datetime
         "created_at": now_z,
         "risks": risks,
     }
@@ -42,7 +42,7 @@ def report_generator(state: RiskState) -> dict:
             event_id = str(result[0].get("id", event_id))
         elif isinstance(result, dict):
             event_id = str(result.get("id", event_id))
-        logger.info(f"Write 1: event → {event_id}")
+        logger.info(f"Write 1: event -> {event_id}")
     except Exception as e:
         logger.error(f"Write 1 failed: {e}")
 
@@ -92,7 +92,7 @@ def report_generator(state: RiskState) -> dict:
         "lng": event_data["lng"],
         "created_at": now_z,
         "risks": risks,
-        # Extra context (doesn't break frontend — these fields are additive)
+        # Extra context (doesn't break frontend -- these fields are additive)
         "supply_chain_paths": state.get("supply_chain_paths", [])[:10],
         "news_context": state.get("news_context", [])[:5],
         "exposed_company_count": len(state.get("exposed_companies", [])),

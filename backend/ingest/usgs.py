@@ -1,5 +1,5 @@
 """
-USGS Earthquake Poller — Fix #30 #32 #33 #81 #99
+USGS Earthquake Poller -- Fix #30 #32 #33 #81 #99
 """
 
 import json
@@ -55,7 +55,7 @@ def poll_once(process: bool = True) -> list[dict]:
                 new.append(f)
                 mag = f.get("properties", {}).get("mag", 0)
                 place = f.get("properties", {}).get("place", "?")
-                logger.info(f"NEW EARTHQUAKE: M{mag} — {place}")
+                logger.info(f"NEW EARTHQUAKE: M{mag} -- {place}")
     return new
 
 

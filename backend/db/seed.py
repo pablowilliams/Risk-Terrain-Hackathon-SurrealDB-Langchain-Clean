@@ -1,5 +1,5 @@
 """
-RiskTerrain Seed Data — Fix #1-4 #12 #20 #41 #42 #96
+RiskTerrain Seed Data -- Fix #1-4 #12 #20 #41 #42 #96
 154 companies (correct countries for non-US), ~90 supply chain edges.
 Dual-write: SurrealDB RELATE + SurrealDBGraph (langchain-surrealdb).
 """

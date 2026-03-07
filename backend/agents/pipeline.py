@@ -1,7 +1,7 @@
 from __future__ import annotations
 """
-RiskTerrain Agent Pipeline — LangGraph StateGraph
-6-node DAG: intake → geo → graph → news → score → report
+RiskTerrain Agent Pipeline -- LangGraph StateGraph
+6-node DAG: intake -> geo -> graph -> news -> score -> report
 (news before scoring so Claude has headline context)
 """
 

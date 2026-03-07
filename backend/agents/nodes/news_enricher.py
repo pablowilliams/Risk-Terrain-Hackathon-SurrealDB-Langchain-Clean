@@ -1,5 +1,5 @@
 """
-Node 5: news_enricher — Fix #23 #24
+Node 5: news_enricher -- Fix #23 #24
 """
 
 import re

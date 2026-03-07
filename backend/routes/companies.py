@@ -1,6 +1,6 @@
 from __future__ import annotations
 """
-Companies API — Fix #34 #35
+Companies API -- Fix #34 #35
 """
 
 import time
