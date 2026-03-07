@@ -54,7 +54,7 @@ export default function Globe3D({
         lat: c.lat,
         lng: c.lng,
         color: riskColor(riskScore),
-        size: riskScore > 0 ? 0.3 + riskScore * 0.7 : 0.2,
+        size: riskScore > 0 ? 0.2 + riskScore * 0.5 : 0.12,
         label: c.ticker,
         ticker: c.ticker,
       }
