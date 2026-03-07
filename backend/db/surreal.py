@@ -95,7 +95,7 @@ _SCHEMA_STATEMENTS = [
     "DEFINE FIELD IF NOT EXISTS weight ON supplies TYPE float",
     "DEFINE FIELD IF NOT EXISTS description ON supplies TYPE string",
 
-    "DEFINE TABLE IF NOT EXISTS event SCHEMAFULL",
+    "DEFINE TABLE IF NOT EXISTS event SCHEMALESS",
     "DEFINE FIELD IF NOT EXISTS type ON event TYPE string",
     "DEFINE FIELD IF NOT EXISTS title ON event TYPE string",
     "DEFINE FIELD IF NOT EXISTS description ON event TYPE string",
@@ -106,7 +106,7 @@ _SCHEMA_STATEMENTS = [
     "DEFINE FIELD IF NOT EXISTS lat ON event TYPE float",
     "DEFINE FIELD IF NOT EXISTS lng ON event TYPE float",
     "DEFINE FIELD IF NOT EXISTS created_at ON event TYPE datetime",
-    "DEFINE FIELD IF NOT EXISTS risks ON event TYPE object DEFAULT {}",
+    "DEFINE FIELD IF NOT EXISTS risks ON event DEFAULT {}",
 
     "DEFINE TABLE IF NOT EXISTS risk_score SCHEMAFULL",
     "DEFINE FIELD IF NOT EXISTS event_id ON risk_score TYPE string",

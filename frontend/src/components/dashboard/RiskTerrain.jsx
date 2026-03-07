@@ -1,84 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Globe3D from "../Globe3D";
-import { SP500_SAMPLE as SHARED_COMPANIES } from "../../data/mockData";
+import { SP500_SAMPLE as SHARED_COMPANIES, RELATIONSHIP_COLORS } from "../../data/mockData";
+import SupplyChainPanel from "./SupplyChainPanel";
 
-// Use shared company data (154 companies)
+// Use shared company data (155 companies including international)
 const SP500_SAMPLE = SHARED_COMPANIES;
-
-const DEMO_EVENTS = [
-  {
-    id: "evt_001",
-    type: "natural_disaster",
-    title: "M7.4 Earthquake — Taiwan",
-    description: "Major earthquake strikes Hualien County, Taiwan. TSMC has paused operations at Fab 18. Aftershocks continuing.",
-    severity: 5,
-    source: "USGS",
-    affected_countries: ["Taiwan"],
-    affected_sectors: ["Technology", "Semiconductors"],
-    lat: 24.0, lng: 121.6,
-    created_at: new Date(Date.now() - 12 * 60000).toISOString(),
-    risks: {
-      NVDA: { score: 0.94, reasoning: "90% of supply chain routed through TSMC Taiwan fabs" },
-      AAPL: { score: 0.88, reasoning: "25% supply chain + 19% revenue exposure to Taiwan/China" },
-      AMD:  { score: 0.85, reasoning: "TSMC manufactures >80% of AMD chips at Taiwan fabs" },
-      QCOM: { score: 0.81, reasoning: "Heavy reliance on TSMC for 5G modem production" },
-      INTC: { score: 0.61, reasoning: "Partial exposure through TSMC advanced packaging" },
-      MSFT: { score: 0.42, reasoning: "Azure hardware supply chain partially affected" },
-      TSLA: { score: 0.38, reasoning: "Semiconductor shortage risk for vehicle production" },
-      GOOGL:{ score: 0.35, reasoning: "TPU chip supply chain indirectly exposed" },
-      AMZN: { score: 0.28, reasoning: "AWS custom silicon supply partially affected" },
-      META: { score: 0.22, reasoning: "AI accelerator procurement mildly impacted" },
-    }
-  },
-  {
-    id: "evt_002",
-    type: "geopolitical",
-    title: "US Sanctions — Chinese Tech Firms",
-    description: "US Treasury announces sweeping new export controls on advanced semiconductor technology to China. 47 entities added to Entity List.",
-    severity: 4,
-    source: "NewsAPI",
-    affected_countries: ["China"],
-    affected_sectors: ["Technology", "Consumer Electronics"],
-    lat: 39.9, lng: 116.4,
-    created_at: new Date(Date.now() - 45 * 60000).toISOString(),
-    risks: {
-      AAPL: { score: 0.79, reasoning: "19% revenue from China at direct risk from consumer retaliation" },
-      NVDA: { score: 0.76, reasoning: "China represents 25% of data centre revenue, now blocked" },
-      QCOM: { score: 0.71, reasoning: "Major Chinese smartphone OEM customer base threatened" },
-      INTC: { score: 0.65, reasoning: "China manufacturing and sales both impacted by controls" },
-      AMD:  { score: 0.58, reasoning: "Chinese cloud and HPC customers face export restrictions" },
-      TSLA: { score: 0.55, reasoning: "Shanghai Gigafactory and Chinese sales under pressure" },
-      AMZN: { score: 0.31, reasoning: "AWS China operations and Alibaba partnership at risk" },
-      MSFT: { score: 0.28, reasoning: "Azure China JV and LinkedIn operations affected" },
-      GM:   { score: 0.45, reasoning: "SAIC-GM joint venture represents 30% of global sales" },
-      F:    { score: 0.38, reasoning: "China manufacturing and Changan Ford JV exposed" },
-    }
-  },
-  {
-    id: "evt_003",
-    type: "macro",
-    title: "Fed Raises Rates +75bps",
-    description: "Federal Reserve raises interest rates by 75 basis points, largest single hike since 1994. Chair signals further hikes likely.",
-    severity: 4,
-    source: "NewsAPI",
-    affected_countries: ["USA"],
-    affected_sectors: ["Financials", "Real Estate", "Technology"],
-    lat: 38.9, lng: -77.0,
-    created_at: new Date(Date.now() - 180 * 60000).toISOString(),
-    risks: {
-      JPM:  { score: 0.31, reasoning: "Higher rates improve NIM but loan default risk rises" },
-      BAC:  { score: 0.38, reasoning: "Large mortgage book exposed to housing market slowdown" },
-      GS:   { score: 0.29, reasoning: "Deal flow likely to slow in higher rate environment" },
-      NFLX: { score: 0.67, reasoning: "High debt load expensive to refinance at elevated rates" },
-      TSLA: { score: 0.59, reasoning: "Auto loans become less affordable, EV demand softens" },
-      AMZN: { score: 0.52, reasoning: "Consumer spending sensitivity and high capex financing costs" },
-      HD:   { score: 0.71, reasoning: "Housing market directly impacted, renovation spend falls" },
-      V:    { score: 0.24, reasoning: "Transaction volumes resilient but credit risk rises" },
-      XOM:  { score: 0.18, reasoning: "Energy sector relatively insulated from rate sensitivity" },
-      PG:   { score: 0.21, reasoning: "Consumer staples provide some defensiveness" },
-    }
-  }
-];
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 const riskColor = (score) => {
@@ -189,6 +115,12 @@ function EventFeed({ events, activeEvent, onEventSelect, onTrigger, processing }
                     {s}
                   </span>
                 ))}
+                {event.news_articles && event.news_articles.length > 0 && (
+                  <span style={{ background: "rgba(34,197,94,0.1)", color: "#86EFAC",
+                    fontSize: 8, padding: "1px 5px", borderRadius: 3, fontFamily: "JetBrains Mono, monospace" }}>
+                    {event.news_articles.length} SOURCES
+                  </span>
+                )}
               </div>
             </div>
           );
@@ -208,7 +140,7 @@ function EventFeed({ events, activeEvent, onEventSelect, onTrigger, processing }
 }
 
 // ── Risk Panel ────────────────────────────────────────────────────────────────
-function RiskPanel({ event, onClose }) {
+function RiskPanel({ event, onClose, supplyChainEdges = [] }) {
   const sorted = Object.entries(event.risks).sort((a, b) => b[1].score - a[1].score);
   const [animating, setAnimating] = useState(true);
 
@@ -252,6 +184,36 @@ function RiskPanel({ event, onClose }) {
           borderLeft: "3px solid rgba(59,130,246,0.4)" }}>
           {event.description}
         </div>
+
+        {/* News Sources */}
+        {event.news_articles && event.news_articles.length > 0 && (
+          <div style={{ marginTop: 8 }}>
+            <div style={{ color: "#64748B", fontSize: 8, fontFamily: "JetBrains Mono, monospace",
+              letterSpacing: 2, marginBottom: 4 }}>SOURCES</div>
+            {event.news_articles.slice(0, 5).map((article, i) => (
+              <a key={i} href={article.url} target="_blank" rel="noopener noreferrer"
+                style={{
+                  display: "flex", alignItems: "center", gap: 6, marginBottom: 3,
+                  padding: "4px 8px", borderRadius: 3,
+                  background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.1)",
+                  textDecoration: "none", cursor: "pointer", transition: "all 0.15s",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = "rgba(59,130,246,0.12)"; e.currentTarget.style.borderColor = "rgba(59,130,246,0.3)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "rgba(59,130,246,0.05)"; e.currentTarget.style.borderColor = "rgba(59,130,246,0.1)"; }}
+              >
+                <span style={{ color: "#3B82F6", fontSize: 8, fontFamily: "JetBrains Mono, monospace",
+                  fontWeight: 700, minWidth: 50, flexShrink: 0 }}>
+                  {article.source}
+                </span>
+                <span style={{ color: "#93C5FD", fontSize: 8.5, lineHeight: 1.3,
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {article.title}
+                </span>
+                <span style={{ color: "#475569", fontSize: 10, flexShrink: 0, marginLeft: "auto" }}>&#x2197;</span>
+              </a>
+            ))}
+          </div>
+        )}
       </div>
 
       <div style={{ padding: "8px 16px 4px" }}>
@@ -312,6 +274,55 @@ function RiskPanel({ event, onClose }) {
             </div>
           );
         })}
+
+        {/* Disrupted Supply Chain section */}
+        {supplyChainEdges.length > 0 && (() => {
+          const affectedTickers = Object.keys(event.risks);
+          const disrupted = supplyChainEdges.filter(e =>
+            affectedTickers.includes(e.from_ticker) || affectedTickers.includes(e.to_ticker)
+          );
+          if (disrupted.length === 0) return null;
+          return (
+            <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 5,
+              background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.2)" }}>
+              <div style={{ color: "#8B5CF6", fontSize: 9, fontFamily: "JetBrains Mono, monospace",
+                letterSpacing: 2, marginBottom: 8 }}>
+                DISRUPTED SUPPLY CHAIN — {disrupted.length} LINKS
+              </div>
+              {disrupted.slice(0, 12).map((edge, i) => {
+                const relColor = RELATIONSHIP_COLORS[edge.relationship] || "#3B82F6";
+                return (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4,
+                    padding: "3px 6px", borderRadius: 3, background: "rgba(15,23,42,0.5)" }}>
+                    <span style={{ color: "#F8FAFC", fontSize: 9, fontWeight: 700,
+                      fontFamily: "JetBrains Mono, monospace", minWidth: 36 }}>
+                      {edge.from_ticker}
+                    </span>
+                    <span style={{ color: relColor, fontSize: 10 }}>&rarr;</span>
+                    <span style={{ color: "#F8FAFC", fontSize: 9, fontWeight: 700,
+                      fontFamily: "JetBrains Mono, monospace", minWidth: 36 }}>
+                      {edge.to_ticker}
+                    </span>
+                    <span style={{ color: relColor, fontSize: 7, fontFamily: "JetBrains Mono, monospace",
+                      background: `${relColor}15`, padding: "1px 4px", borderRadius: 2 }}>
+                      {edge.relationship.replace(/_/g, " ").toUpperCase()}
+                    </span>
+                    <span style={{ color: "#475569", fontSize: 8, fontFamily: "JetBrains Mono, monospace",
+                      marginLeft: "auto" }}>
+                      {(edge.weight * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                );
+              })}
+              {disrupted.length > 12 && (
+                <div style={{ color: "#64748B", fontSize: 8, fontFamily: "JetBrains Mono, monospace",
+                  textAlign: "center", marginTop: 4 }}>
+                  +{disrupted.length - 12} MORE LINKS
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -357,9 +368,11 @@ function StatusBar({ companies, activeEvent, processing, isMobile }) {
 export default function RiskTerrain() {
   const [events, setEvents] = useState([]);
   const [activeEvent, setActiveEvent] = useState(null);
-  const [view, setView] = useState("feed"); // "feed" | "report"
+  const [view, setView] = useState("feed"); // "feed" | "report" | "graph"
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [processing, setProcessing] = useState(false);
+  const [supplyChain, setSupplyChain] = useState([]);
+  const [graphTicker, setGraphTicker] = useState(null);
   const globeRef = useRef(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -382,6 +395,16 @@ export default function RiskTerrain() {
         }
       })
       .catch(err => console.warn('Backend not available, using empty feed:', err));
+  }, []);
+
+  // Fetch supply chain edges on mount
+  useEffect(() => {
+    fetch('/api/v1/supply-chain')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) setSupplyChain(data);
+      })
+      .catch(err => console.warn('Supply chain not available:', err));
   }, []);
 
   // Fly globe to event location when activeEvent changes
@@ -499,6 +522,7 @@ export default function RiskTerrain() {
           <div style={{ display: "flex", gap: isMobile ? 10 : 20, alignItems: "center" }}>
             {!isMobile && [
               { label: "COMPANIES", value: SP500_SAMPLE.length, color: "#3B82F6" },
+              { label: "EDGES", value: supplyChain.length, color: "#8B5CF6" },
               { label: "EVENTS", value: events.length, color: "#F97316" },
               { label: "CRITICAL", value: activeEvent ? Object.values(activeEvent.risks).filter(r => r.score >= 0.8).length : 0, color: "#EF4444" },
             ].map(({ label, value, color }) => (
@@ -514,6 +538,7 @@ export default function RiskTerrain() {
               {[
                 { id: "feed", label: "EVENTS" },
                 { id: "report", label: "ANALYSIS" },
+                { id: "graph", label: "GRAPH" },
               ].map(tab => (
                 <button key={tab.id} onClick={() => { setView(tab.id); if (isMobile) setPanelOpen(true); }}
                   style={{
@@ -547,8 +572,18 @@ export default function RiskTerrain() {
           <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
             <Globe3D
               companies={SP500_SAMPLE}
-              activeEvent={activeEvent}
-              onCompanyClick={handleCompanyClick}
+              activeEvent={view !== "graph" ? activeEvent : null}
+              supplyChainEdges={supplyChain}
+              showSupplyChain={view === "graph" || (view === "report" && !!activeEvent)}
+              highlightTicker={view === "graph" ? graphTicker : null}
+              affectedTickers={view === "report" && activeEvent ? Object.keys(activeEvent.risks) : null}
+              onCompanyClick={(company) => {
+                if (view === "graph") {
+                  setGraphTicker(prev => prev === company.ticker ? null : company.ticker);
+                } else {
+                  handleCompanyClick(company);
+                }
+              }}
               enableAutoRotate={true}
               onGlobeReady={(globe) => {
                 globeRef.current = globe;
@@ -565,25 +600,58 @@ export default function RiskTerrain() {
                 background: "rgba(8,13,26,0.9)", border: "1px solid rgba(59,130,246,0.2)",
                 borderRadius: 6, padding: "10px 14px", backdropFilter: "blur(8px)",
               }}>
-                <div style={{ color: "#475569", fontSize: 8, fontFamily: "JetBrains Mono, monospace",
-                  letterSpacing: 2, marginBottom: 8 }}>RISK LEVEL</div>
-                {[
-                  ["CRITICAL", "#EF4444", ">= 80%"],
-                  ["HIGH",     "#F97316", "60-79%"],
-                  ["MEDIUM",   "#EAB308", "40-59%"],
-                  ["LOW",      "#22C55E", "20-39%"],
-                  ["NONE",     "#3B82F6", "< 20%"],
-                ].map(([label, color, range]) => (
-                  <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: color,
-                      boxShadow: `0 0 6px ${color}` }} />
-                    <span style={{ color, fontSize: 8, fontFamily: "JetBrains Mono, monospace",
-                      minWidth: 52 }}>{label}</span>
-                    <span style={{ color: "#334155", fontSize: 8, fontFamily: "JetBrains Mono, monospace" }}>
-                      {range}
-                    </span>
-                  </div>
-                ))}
+                {view === "graph" ? (
+                  <>
+                    <div style={{ color: "#475569", fontSize: 8, fontFamily: "JetBrains Mono, monospace",
+                      letterSpacing: 2, marginBottom: 8 }}>SUPPLY CHAIN</div>
+                    {Object.entries(RELATIONSHIP_COLORS).map(([rel, color]) => (
+                      <div key={rel} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: color,
+                          boxShadow: `0 0 6px ${color}` }} />
+                        <span style={{ color, fontSize: 8, fontFamily: "JetBrains Mono, monospace" }}>
+                          {rel.replace(/_/g, " ").toUpperCase()}
+                        </span>
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    <div style={{ color: "#475569", fontSize: 8, fontFamily: "JetBrains Mono, monospace",
+                      letterSpacing: 2, marginBottom: 8 }}>RISK LEVEL</div>
+                    {[
+                      ["CRITICAL", "#EF4444", ">= 80%"],
+                      ["HIGH",     "#F97316", "60-79%"],
+                      ["MEDIUM",   "#EAB308", "40-59%"],
+                      ["LOW",      "#22C55E", "20-39%"],
+                      ["NONE",     "#3B82F6", "< 20%"],
+                    ].map(([label, color, range]) => (
+                      <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: color,
+                          boxShadow: `0 0 6px ${color}` }} />
+                        <span style={{ color, fontSize: 8, fontFamily: "JetBrains Mono, monospace",
+                          minWidth: 52 }}>{label}</span>
+                        <span style={{ color: "#334155", fontSize: 8, fontFamily: "JetBrains Mono, monospace" }}>
+                          {range}
+                        </span>
+                      </div>
+                    ))}
+                    {activeEvent && supplyChain.length > 0 && (
+                      <>
+                        <div style={{ height: 1, background: "rgba(59,130,246,0.15)", margin: "8px 0" }} />
+                        <div style={{ color: "#475569", fontSize: 8, fontFamily: "JetBrains Mono, monospace",
+                          letterSpacing: 2, marginBottom: 6 }}>DISRUPTED SUPPLY</div>
+                        {Object.entries(RELATIONSHIP_COLORS).slice(0, 4).map(([rel, color]) => (
+                          <div key={rel} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                            <div style={{ width: 12, height: 2, background: color, borderRadius: 1 }} />
+                            <span style={{ color: `${color}CC`, fontSize: 7, fontFamily: "JetBrains Mono, monospace" }}>
+                              {rel.replace(/_/g, " ").toUpperCase()}
+                            </span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </>
+                )}
               </div>
             )}
 
@@ -662,7 +730,7 @@ export default function RiskTerrain() {
                 fontWeight: 700, letterSpacing: 1,
                 boxShadow: "0 4px 20px rgba(29,78,216,0.4)",
               }}>
-                {events.length} EVENTS · VIEW PANEL
+                {view === "graph" ? `${supplyChain.length} EDGES` : `${events.length} EVENTS`} · VIEW PANEL
               </button>
             )}
           </div>
@@ -688,7 +756,7 @@ export default function RiskTerrain() {
                 }}>
                   <span style={{ color: "#93C5FD", fontSize: 10, fontFamily: "JetBrains Mono, monospace",
                     letterSpacing: 1 }}>
-                    {view === "feed" ? "EVENT FEED" : "RISK ANALYSIS"}
+                    {view === "graph" ? "SUPPLY CHAIN" : view === "feed" ? "EVENT FEED" : "RISK ANALYSIS"}
                   </span>
                   <button onClick={() => setPanelOpen(false)} style={{
                     background: "none", border: "1px solid rgba(100,116,139,0.3)",
@@ -698,7 +766,14 @@ export default function RiskTerrain() {
                   }}>×</button>
                 </div>
               )}
-              {view === "feed" || !activeEvent ? (
+              {view === "graph" ? (
+                <SupplyChainPanel
+                  edges={supplyChain}
+                  companies={SP500_SAMPLE}
+                  selectedTicker={graphTicker}
+                  onTickerSelect={setGraphTicker}
+                />
+              ) : view === "feed" || !activeEvent ? (
                 <EventFeed
                   events={events}
                   activeEvent={activeEvent}
@@ -710,6 +785,7 @@ export default function RiskTerrain() {
                 <RiskPanel
                   event={activeEvent}
                   onClose={() => setView("feed")}
+                  supplyChainEdges={supplyChain}
                 />
               )}
             </div>

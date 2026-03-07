@@ -23,6 +23,7 @@ logger = logging.getLogger("riskterrain")
 # Fix #82: imports at top
 from routes.companies import router as companies_router
 from routes.events import router as events_router
+from routes.supply_chain import router as supply_chain_router
 
 
 # Fix #15: use lifespan instead of deprecated on_event
@@ -45,6 +46,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
+        "http://localhost:5174",
         "http://localhost:3000",
         "https://daththeanalyst.github.io",
     ],
@@ -226,6 +228,7 @@ def health_compat():
 # Fix #82 #86: mount versioned routers
 app.include_router(companies_router)
 app.include_router(events_router)
+app.include_router(supply_chain_router)
 
 # Backward compat: also mount at /api/ (unversioned)
 from fastapi import APIRouter

@@ -2,8 +2,8 @@ import { useRef, useCallback, useMemo, useState, useEffect } from 'react'
 import Globe from 'react-globe.gl'
 import type { GlobeMethods } from 'react-globe.gl'
 import * as THREE from 'three'
-import type { Company, DemoEvent } from '../data/mockData'
-import { riskColor } from '../data/mockData'
+import type { Company, DemoEvent, SupplyChainEdge } from '../data/mockData'
+import { riskColor, RELATIONSHIP_COLORS } from '../data/mockData'
 
 interface GlobePoint {
   lat: number
@@ -28,11 +28,29 @@ interface GlobeArc {
   endLat: number
   endLng: number
   score: number
+  _type: 'event'
 }
+
+interface SupplyArc {
+  startLat: number
+  startLng: number
+  endLat: number
+  endLng: number
+  relationship: string
+  weight: number
+  color: string
+  _type: 'supply'
+}
+
+type AnyArc = GlobeArc | SupplyArc
 
 interface Globe3DProps {
   companies: Company[]
   activeEvent?: DemoEvent | null
+  supplyChainEdges?: SupplyChainEdge[]
+  showSupplyChain?: boolean
+  highlightTicker?: string | null
+  affectedTickers?: string[] | null
   onCompanyClick?: (company: Company) => void
   enableAutoRotate?: boolean
   onGlobeReady?: (globe: GlobeMethods) => void
@@ -41,6 +59,10 @@ interface Globe3DProps {
 export default function Globe3D({
   companies,
   activeEvent,
+  supplyChainEdges,
+  showSupplyChain = false,
+  highlightTicker,
+  affectedTickers,
   onCompanyClick,
   enableAutoRotate = true,
   onGlobeReady,
@@ -49,7 +71,6 @@ export default function Globe3D({
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
 
-  // Measure container so globe renders at correct size (not window size)
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -65,16 +86,17 @@ export default function Globe3D({
   const points: GlobePoint[] = useMemo(() =>
     companies.map(c => {
       const riskScore = activeEvent?.risks[c.ticker]?.score ?? 0
+      const isHighlighted = highlightTicker === c.ticker
       return {
         lat: c.lat,
         lng: c.lng,
-        color: riskColor(riskScore),
-        size: riskScore > 0 ? 0.2 + riskScore * 0.5 : 0.12,
+        color: isHighlighted ? '#F8FAFC' : riskColor(riskScore),
+        size: isHighlighted ? 0.6 : (riskScore > 0 ? 0.2 + riskScore * 0.5 : 0.12),
         label: c.ticker,
         ticker: c.ticker,
       }
     }),
-    [companies, activeEvent]
+    [companies, activeEvent, highlightTicker]
   )
 
   const rings: GlobeRing[] = useMemo(() =>
@@ -90,7 +112,8 @@ export default function Globe3D({
     [activeEvent]
   )
 
-  const arcs: GlobeArc[] = useMemo(() => {
+  // Event-to-company arcs
+  const eventArcs: GlobeArc[] = useMemo(() => {
     if (!activeEvent) return []
     return Object.entries(activeEvent.risks)
       .map(([ticker, risk]) => {
@@ -102,10 +125,47 @@ export default function Globe3D({
           endLat: company.lat,
           endLng: company.lng,
           score: risk.score,
+          _type: 'event' as const,
         }
       })
       .filter((a): a is GlobeArc => a !== null)
   }, [activeEvent, companies])
+
+  // Supply chain arcs (company-to-company)
+  const supplyArcs: SupplyArc[] = useMemo(() => {
+    if (!showSupplyChain || !supplyChainEdges || supplyChainEdges.length === 0) return []
+
+    return supplyChainEdges
+      .filter(edge => {
+        if (highlightTicker) {
+          return edge.from_ticker === highlightTicker || edge.to_ticker === highlightTicker
+        }
+        if (affectedTickers && affectedTickers.length > 0) {
+          return affectedTickers.includes(edge.from_ticker) || affectedTickers.includes(edge.to_ticker)
+        }
+        return edge.weight >= 0.25
+      })
+      .map(edge => {
+        const fromCompany = companies.find(c => c.ticker === edge.from_ticker)
+        const toCompany = companies.find(c => c.ticker === edge.to_ticker)
+        if (!fromCompany || !toCompany) return null
+        return {
+          startLat: fromCompany.lat,
+          startLng: fromCompany.lng,
+          endLat: toCompany.lat,
+          endLng: toCompany.lng,
+          relationship: edge.relationship,
+          weight: edge.weight,
+          color: RELATIONSHIP_COLORS[edge.relationship] || '#3B82F6',
+          _type: 'supply' as const,
+        }
+      })
+      .filter((a): a is SupplyArc => a !== null)
+  }, [showSupplyChain, supplyChainEdges, companies, highlightTicker, affectedTickers])
+
+  const allArcs: AnyArc[] = useMemo(() => {
+    return [...supplyArcs, ...eventArcs]
+  }, [eventArcs, supplyArcs])
 
   const handleGlobeReady = useCallback(() => {
     const globe = globeRef.current
@@ -119,7 +179,6 @@ export default function Globe3D({
       controls.dampingFactor = 0.05
     }
 
-    // Dark ocean material
     try {
       const mat = (globe as any).globeMaterial() as THREE.MeshPhongMaterial
       mat.color = new THREE.Color('#050a14')
@@ -129,7 +188,6 @@ export default function Globe3D({
       mat.specular = new THREE.Color('#0a2040')
     } catch { /* globe material not ready yet */ }
 
-    // Scene background
     globe.scene().background = new THREE.Color('#080D1A')
 
     if (onGlobeReady) onGlobeReady(globe)
@@ -157,7 +215,6 @@ export default function Globe3D({
           atmosphereColor="#1a6bcc"
           atmosphereAltitude={0.18}
           showAtmosphere={true}
-          // Points
           pointsData={points}
           pointLat="lat"
           pointLng="lng"
@@ -179,28 +236,55 @@ export default function Globe3D({
             ">${pt.ticker}</div>`
           }}
           onPointClick={handlePointClick}
-          // Arcs
-          arcsData={arcs}
+          arcsData={allArcs}
           arcStartLat="startLat"
           arcStartLng="startLng"
           arcEndLat="endLat"
           arcEndLng="endLng"
           arcColor={(d: object) => {
-            const a = d as GlobeArc
-            return a.score >= 0.8
+            const a = d as AnyArc
+            if (a._type === 'supply') {
+              const sa = a as SupplyArc
+              return [`${sa.color}90`, `${sa.color}40`]
+            }
+            const ea = a as GlobeArc
+            return ea.score >= 0.8
               ? ['rgba(239,68,68,0.6)', 'rgba(239,68,68,0.2)']
               : ['rgba(249,115,22,0.5)', 'rgba(249,115,22,0.15)']
           }}
           arcStroke={(d: object) => {
-            const a = d as GlobeArc
-            return 0.3 + a.score * 1.2
+            const a = d as AnyArc
+            if (a._type === 'supply') {
+              return 0.2 + (a as SupplyArc).weight * 0.8
+            }
+            return 0.3 + (a as GlobeArc).score * 1.2
           }}
-          arcDashLength={0.4}
-          arcDashGap={0.2}
-          arcDashAnimateTime={1500}
+          arcDashLength={(d: object) => (d as AnyArc)._type === 'supply' ? 0.6 : 0.4}
+          arcDashGap={(d: object) => (d as AnyArc)._type === 'supply' ? 0.3 : 0.2}
+          arcDashAnimateTime={(d: object) => (d as AnyArc)._type === 'supply' ? 2500 : 1500}
           arcAltitudeAutoScale={0.4}
           arcsTransitionDuration={800}
-          // Rings
+          arcLabel={(d: object) => {
+            const a = d as AnyArc
+            if (a._type === 'supply') {
+              const sa = a as SupplyArc
+              return `<div style="
+                background: rgba(8,13,26,0.95);
+                border: 1px solid ${sa.color}80;
+                border-radius: 6px;
+                padding: 6px 10px;
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 10px;
+                color: #F8FAFC;
+              ">
+                <span style="color: ${sa.color}; font-weight: 700;">
+                  ${sa.relationship.replace(/_/g, ' ').toUpperCase()}
+                </span>
+                <br/>Weight: ${(sa.weight * 100).toFixed(0)}%
+              </div>`
+            }
+            return ''
+          }}
           ringsData={rings}
           ringLat="lat"
           ringLng="lng"

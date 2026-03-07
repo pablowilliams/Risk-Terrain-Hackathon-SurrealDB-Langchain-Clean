@@ -26,6 +26,7 @@ export interface DemoEvent {
   lng: number
   created_at: string
   risks: Record<string, RiskEntry>
+  news_articles?: Array<{ title: string; url: string; source: string }>
 }
 
 // ── Mock Data ─────────────────────────────────────────────────────────────────
@@ -206,7 +207,7 @@ export const SP500_SAMPLE: Company[] = [
   { ticker: "LLY",   name: "Eli Lilly and Company",     sector: "Healthcare",      lat: 39.77, lng: -86.16,  mc: 700  },
   { ticker: "ANTM",  name: "Elevance Health",           sector: "Healthcare",      lat: 39.77, lng: -86.15,  mc: 110  },
   // ── International ──
-  { ticker: "TSM",   name: "TSMC",                      sector: "Technology",      lat: 24.78, lng: 120.98,  mc: 650  },
+  { ticker: "TSMC",  name: "TSMC",                      sector: "Technology",      lat: 24.78, lng: 120.98,  mc: 650  },
   { ticker: "ASML",  name: "ASML Holdings",             sector: "Technology",      lat: 51.49, lng: 5.46,    mc: 350  },
   { ticker: "NVO",   name: "Novo Nordisk",              sector: "Healthcare",      lat: 55.77, lng: 12.52,   mc: 420  },
   { ticker: "SAP",   name: "SAP SE",                    sector: "Technology",      lat: 49.29, lng: 8.64,    mc: 250  },
@@ -216,6 +217,7 @@ export const SP500_SAMPLE: Company[] = [
   { ticker: "ROCHE", name: "Roche Holding",             sector: "Healthcare",      lat: 47.56, lng: 7.59,    mc: 220  },
   { ticker: "SONY",  name: "Sony Group Corp.",          sector: "Technology",      lat: 35.66, lng: 139.75,  mc: 130  },
   { ticker: "BABA",  name: "Alibaba Group",             sector: "Consumer Disc",   lat: 30.27, lng: 120.15,  mc: 200  },
+  { ticker: "SMSN",  name: "Samsung Electronics",       sector: "Technology",      lat: 37.24, lng: 127.00,  mc: 350  },
 ]
 
 export const DEMO_EVENTS: DemoEvent[] = [
@@ -292,6 +294,23 @@ export const DEMO_EVENTS: DemoEvent[] = [
     }
   }
 ]
+
+export interface SupplyChainEdge {
+  from_ticker: string
+  to_ticker: string
+  relationship: string
+  weight: number
+  description: string
+}
+
+export const RELATIONSHIP_COLORS: Record<string, string> = {
+  chip_fab: '#06B6D4',
+  component: '#8B5CF6',
+  ai_compute: '#F59E0B',
+  cloud_provider: '#10B981',
+  sector_peer: '#64748B',
+  logistics: '#EC4899',
+}
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 export const riskColor = (score: number): string => {

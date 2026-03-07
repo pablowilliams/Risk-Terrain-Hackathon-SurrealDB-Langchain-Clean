@@ -34,6 +34,7 @@ def news_enricher(state: RiskState) -> dict:
 
     logger.info(f"news_enricher: query='{search_query}'")
     headlines = []
+    articles_out = []
 
     try:
         with httpx.Client(timeout=3.0) as client:
@@ -47,11 +48,13 @@ def news_enricher(state: RiskState) -> dict:
                     t = article.get("title", "")
                     if t and t != "[Removed]":
                         src = article.get("source", {}).get("name", "Unknown")
+                        url = article.get("url", "")
                         headlines.append(f"[{src}] {t}")
+                        articles_out.append({"title": t, "url": url, "source": src})
                 logger.info(f"news_enricher: {len(headlines)} headlines")
             else:
                 logger.warning(f"NewsAPI status {r.status_code}")
     except Exception as e:
         logger.warning(f"NewsAPI failed (non-blocking): {e}")
 
-    return {"news_context": headlines}
+    return {"news_context": headlines, "news_articles": articles_out}

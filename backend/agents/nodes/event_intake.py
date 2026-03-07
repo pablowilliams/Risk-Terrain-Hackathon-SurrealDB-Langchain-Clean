@@ -47,6 +47,8 @@ def _try_parse_usgs(raw: str) -> dict | None:
             sev, impact = 3, "moderate structural impacts and localised disruptions"
         else:
             sev, impact = 2, "minor local effects"
+        usgs_url = props.get("url", "")
+        articles = [{"title": f"M{mag:.1f} Earthquake -- {place}", "url": usgs_url, "source": "USGS"}] if usgs_url else []
         return {
             "event_type": "natural_disaster",
             "title": f"M{mag:.1f} Earthquake -- {place}",
@@ -54,6 +56,7 @@ def _try_parse_usgs(raw: str) -> dict | None:
             "severity": sev,
             "event_lat": float(coords[1]),
             "event_lng": float(coords[0]),
+            "news_articles": articles,
         }
     except (json.JSONDecodeError, KeyError, TypeError, IndexError, ValueError):  # Fix #57
         return None
