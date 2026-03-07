@@ -100,12 +100,12 @@ function useScrollGlobe(globeRef: React.MutableRefObject<GlobeMethods | null>) {
     const totalHeight = document.documentElement.scrollHeight - vh
     const progress = totalHeight > 0 ? Math.min(scrollY / totalHeight, 1) : 0
 
-    // Start mid-Pacific so arcs from Taiwan → US companies are visible on load
+    // Start centered on the US where arc endpoints (S&P 500 companies) are
     const altitude = 2.2 + progress * 2.8
-    // Tilt the view (lat sweeps 30 → 55)
-    const lat = 30 + progress * 25
-    // Start at Pacific (lng -170), rotate eastward across full page
-    const lng = -170 + progress * 130
+    // Tilt the view (lat sweeps 35 → 55)
+    const lat = 35 + progress * 20
+    // Start at US center (lng -95), slowly rotate eastward
+    const lng = -95 + progress * 60
 
     globe.pointOfView({ lat, lng, altitude }, 0)
   }, [scrollY, globeRef])
