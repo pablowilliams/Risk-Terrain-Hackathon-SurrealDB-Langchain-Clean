@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useMemo } from 'react'
+import { useRef, useCallback, useMemo } from 'react'
 import Globe from 'react-globe.gl'
 import type { GlobeMethods } from 'react-globe.gl'
 import * as THREE from 'three'
@@ -67,7 +67,7 @@ export default function Globe3D({
     [activeEvent]
   )
 
-  useEffect(() => {
+  const handleGlobeReady = useCallback(() => {
     const globe = globeRef.current
     if (!globe) return
 
@@ -80,12 +80,14 @@ export default function Globe3D({
     }
 
     // Dark ocean material
-    const mat = (globe as any).globeMaterial() as THREE.MeshPhongMaterial
-    mat.color = new THREE.Color('#050a14')
-    mat.emissive = new THREE.Color('#0a1628')
-    mat.emissiveIntensity = 0.15
-    mat.shininess = 15
-    mat.specular = new THREE.Color('#0a2040')
+    try {
+      const mat = (globe as any).globeMaterial() as THREE.MeshPhongMaterial
+      mat.color = new THREE.Color('#050a14')
+      mat.emissive = new THREE.Color('#0a1628')
+      mat.emissiveIntensity = 0.15
+      mat.shininess = 15
+      mat.specular = new THREE.Color('#0a2040')
+    } catch { /* globe material not ready yet */ }
 
     // Scene background
     globe.scene().background = new THREE.Color('#080D1A')
@@ -105,6 +107,7 @@ export default function Globe3D({
   return (
     <Globe
       ref={globeRef}
+      onGlobeReady={handleGlobeReady}
       globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
       bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
       atmosphereColor="#1a6bcc"
