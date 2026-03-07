@@ -100,10 +100,10 @@ function useScrollGlobe(globeRef: React.MutableRefObject<GlobeMethods | null>) {
     const totalHeight = document.documentElement.scrollHeight - vh
     const progress = totalHeight > 0 ? Math.min(scrollY / totalHeight, 1) : 0
 
-    // Start centered on the US where arc endpoints (S&P 500 companies) are
-    const altitude = 2.2 + progress * 2.8
-    // Tilt the view (lat sweeps 35 → 55)
-    const lat = 35 + progress * 20
+    // Start zoomed out enough to see arcs from Taiwan → US, centered on US
+    const altitude = 2.8 + progress * 2.2
+    // Tilt the view (lat sweeps 32 → 55)
+    const lat = 32 + progress * 23
     // Start at US center (lng -95), slowly rotate eastward
     const lng = -95 + progress * 60
 
@@ -121,6 +121,8 @@ export default function Landing() {
 
   const handleGlobeReady = useCallback((globe: GlobeMethods) => {
     globeRef.current = globe
+    // Set initial view: US-centered, zoomed out to show arcs from Taiwan
+    globe.pointOfView({ lat: 32, lng: -95, altitude: 2.8 }, 0)
     // Disable user drag so scroll works naturally
     const controls = globe.controls()
     controls.enableZoom = false
