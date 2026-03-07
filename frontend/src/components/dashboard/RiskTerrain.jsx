@@ -355,11 +355,7 @@ function StatusBar({ companies, activeEvent, processing, isMobile }) {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function RiskTerrain() {
-  // Pre-seed the feed with the Fed rate event so dashboard isn't empty on load
-  const [events, setEvents] = useState(() => [
-    { ...DEMO_EVENTS[2], id: "evt_seed_1", created_at: new Date(Date.now() - 180 * 60000).toISOString() },
-    { ...DEMO_EVENTS[1], id: "evt_seed_2", created_at: new Date(Date.now() - 45 * 60000).toISOString() },
-  ]);
+  const [events, setEvents] = useState([]);
   const [activeEvent, setActiveEvent] = useState(null);
   const [view, setView] = useState("feed"); // "feed" | "report"
   const [selectedCompany, setSelectedCompany] = useState(null);
@@ -374,19 +370,18 @@ export default function RiskTerrain() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // Auto-trigger the Taiwan earthquake 1.5s after mount
+  // Fetch existing events from backend on mount
   useEffect(() => {
-    const t = setTimeout(() => {
-      const evt = { ...DEMO_EVENTS[0], id: `evt_auto_${Date.now()}`, created_at: new Date().toISOString() };
-      setProcessing(true);
-      setTimeout(() => {
-        setEvents(prev => [evt, ...prev]);
-        setActiveEvent(evt);
-        setView("report");
-        setProcessing(false);
-      }, 2200);
-    }, 1500);
-    return () => clearTimeout(t);
+    fetch('/api/v1/events')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setEvents(data);
+          setActiveEvent(data[0]);
+          setView("report");
+        }
+      })
+      .catch(err => console.warn('Backend not available, using empty feed:', err));
   }, []);
 
   // Fly globe to event location when activeEvent changes
@@ -402,15 +397,28 @@ export default function RiskTerrain() {
     return () => clearTimeout(t);
   }, [activeEvent]);
 
-  const handleTrigger = useCallback((idx) => {
-    const evt = { ...DEMO_EVENTS[idx], id: `evt_${Date.now()}`, created_at: new Date().toISOString() };
+  const handleTrigger = useCallback(async (idx) => {
+    const prompts = [
+      "M7.4 earthquake strikes Hualien County, Taiwan. TSMC reports damage to advanced fabs and pauses chip production.",
+      "US Treasury announces sweeping new export controls on semiconductor technology to China, targeting EUV equipment.",
+      "Federal Reserve raises interest rates by 75 basis points, signaling continued tightening amid persistent inflation.",
+    ];
     setProcessing(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch('/api/v1/events/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: prompts[idx], source: 'manual' }),
+      });
+      const evt = await res.json();
       setEvents(prev => [evt, ...prev]);
       setActiveEvent(evt);
       setView("report");
+    } catch (err) {
+      console.error('Pipeline failed:', err);
+    } finally {
       setProcessing(false);
-    }, 2200);
+    }
   }, []);
 
   const handleEventSelect = useCallback((event) => {

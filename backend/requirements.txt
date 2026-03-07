@@ -1,0 +1,29 @@
+# Core
+fastapi>=0.115.0,<1.0
+uvicorn[standard]>=0.30.0,<1.0
+pydantic>=2.0.0,<3.0
+pydantic-settings>=2.5.0,<3.0
+
+# SurrealDB
+surrealdb>=1.0.2,<2.0  # Fix #78
+
+# LangChain Ecosystem (Criterion ①)
+langchain-surrealdb>=0.1.0,<1.0     # Fix #78: upper bounds
+langgraph>=0.2.0,<1.0
+langchain-anthropic>=0.2.0,<1.0
+langchain-core>=0.3.0,<1.0
+langchain-community>=0.3.0,<1.0
+
+# Embeddings — Fix #77: sentence-transformers is heavy (pulls PyTorch ~2GB)
+# Option A: Full embeddings (better quality, larger image)
+sentence-transformers>=2.2.0,<4.0
+# Fix #79: torch-cpu to avoid CUDA bloat in Docker
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+
+# Claude API
+anthropic>=0.39.0,<1.0  # Fix #78
+
+# HTTP + Config
+python-dotenv>=1.0.1,<2.0
+httpx>=0.27.0,<1.0
