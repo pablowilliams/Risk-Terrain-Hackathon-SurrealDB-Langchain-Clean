@@ -105,235 +105,6 @@ const timeAgo = (iso) => {
   return `${Math.floor(mins/60)}h ${mins%60}m ago`;
 };
 
-// ── Map Component ─────────────────────────────────────────────────────────────
-function WorldMap({ companies, activeEvent, onCompanyClick, selectedCompany }) {
-  const canvasRef = useRef(null);
-  const animRef = useRef(null);
-  const timeRef = useRef(0);
-  const [tooltip, setTooltip] = useState(null);
-
-  // Mercator-like projection
-  const project = useCallback((lat, lng, w, h) => {
-    const x = (lng + 180) / 360 * w;
-    const latRad = lat * Math.PI / 180;
-    const mercN = Math.log(Math.tan(Math.PI/4 + latRad/2));
-    const y = h/2 - (mercN * h / (2 * Math.PI));
-    return [x, y];
-  }, []);
-
-  const getRiskScore = useCallback((ticker) => {
-    if (!activeEvent) return 0;
-    return activeEvent.risks[ticker]?.score || 0;
-  }, [activeEvent]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-
-    const draw = (t) => {
-      timeRef.current = t;
-      const W = canvas.width;
-      const H = canvas.height;
-      ctx.clearRect(0, 0, W, H);
-
-      // Background grid
-      ctx.strokeStyle = "rgba(30,58,138,0.15)";
-      ctx.lineWidth = 0.5;
-      for (let x = 0; x < W; x += 60) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
-      }
-      for (let y = 0; y < H; y += 60) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-      }
-
-      // Continent outlines (simplified)
-      const continents = [
-        // North America
-        [[49,25],[49,-125],[14,-117],[14,-83],[25,-77],[32,-80],[47,-52],[49,25]],
-        // Europe
-        [[71,28],[71,30],[55,37],[42,28],[36,14],[44,0],[48,-5],[58,-5],[58,5],[55,10],[57,12],[60,5],[65,14],[71,28]],
-        // Asia (simplified)
-        [[71,180],[71,30],[55,37],[42,28],[12,44],[22,60],[28,65],[25,85],[8,77],[1,104],[22,121],[38,121],[53,135],[66,170],[71,180]],
-        // Africa
-        [[37,10],[37,37],[22,37],[8,44],[-35,26],[-35,18],[-18,12],[0,9],[15,0],[37,10]],
-        // South America
-        [[12,-72],[12,-62],[0,-50],[-55,-68],[-55,-72],[-18,-70],[-5,-81],[8,-77],[12,-72]],
-        // Australia
-        [[-15,130],[-15,141],[-38,147],[-38,115],[-22,114],[-15,130]],
-      ];
-
-      ctx.fillStyle = "rgba(15,23,42,0.8)";
-      ctx.strokeStyle = "rgba(30,64,175,0.3)";
-      ctx.lineWidth = 0.8;
-
-      continents.forEach(pts => {
-        ctx.beginPath();
-        pts.forEach(([lat, lng], i) => {
-          const [x, y] = project(lat, lng, W, H);
-          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-        });
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-      });
-
-      // Event epicentre pulse
-      if (activeEvent?.lat && activeEvent?.lng) {
-        const [ex, ey] = project(activeEvent.lat, activeEvent.lng, W, H);
-        const pulse = (Math.sin(t * 0.003) + 1) / 2;
-        const maxR = 60;
-        for (let r = 0; r < 3; r++) {
-          const radius = ((pulse + r * 0.33) % 1) * maxR;
-          const alpha = (1 - radius / maxR) * 0.4;
-          ctx.beginPath();
-          ctx.arc(ex, ey, radius, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(239,68,68,${alpha})`;
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-        }
-        ctx.beginPath();
-        ctx.arc(ex, ey, 5, 0, Math.PI * 2);
-        ctx.fillStyle = "#EF4444";
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(ex, ey, 3, 0, Math.PI * 2);
-        ctx.fillStyle = "#FCA5A5";
-        ctx.fill();
-      }
-
-      // Company dots
-      companies.forEach(company => {
-        const [cx, cy] = project(company.lat, company.lng, W, H);
-        const score = getRiskScore(company.ticker);
-        const color = riskColor(score);
-        const isSelected = selectedCompany?.ticker === company.ticker;
-        const baseR = score > 0 ? 3 + score * 7 : 3;
-        const r = isSelected ? baseR + 3 : baseR;
-
-        // Glow for high risk
-        if (score > 0.5) {
-          const glowPulse = 0.5 + 0.5 * Math.sin(t * 0.004 + company.lat);
-          ctx.beginPath();
-          ctx.arc(cx, cy, r + 8, 0, Math.PI * 2);
-          ctx.fillStyle = `${color}${Math.floor(glowPulse * 25).toString(16).padStart(2,"0")}`;
-          ctx.fill();
-        }
-
-        ctx.beginPath();
-        ctx.arc(cx, cy, r, 0, Math.PI * 2);
-        ctx.fillStyle = score > 0 ? color : "rgba(100,116,139,0.6)";
-        ctx.fill();
-
-        if (isSelected) {
-          ctx.beginPath();
-          ctx.arc(cx, cy, r + 4, 0, Math.PI * 2);
-          ctx.strokeStyle = "#F8FAFC";
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-        }
-
-        // Ticker label for high risk companies
-        if (score > 0.6 || isSelected) {
-          ctx.fillStyle = "#F8FAFC";
-          ctx.font = `bold 9px 'JetBrains Mono', monospace`;
-          ctx.fillText(company.ticker, cx + r + 3, cy + 3);
-        }
-      });
-
-      animRef.current = requestAnimationFrame(draw);
-    };
-
-    animRef.current = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(animRef.current);
-  }, [companies, activeEvent, getRiskScore, project, selectedCompany]);
-
-  // Resize
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ro = new ResizeObserver(() => {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
-    });
-    ro.observe(canvas);
-    canvas.width = canvas.offsetWidth;
-    canvas.height = canvas.offsetHeight;
-    return () => ro.disconnect();
-  }, []);
-
-  const handleMouseMove = useCallback((e) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    const W = canvas.width; const H = canvas.height;
-
-    let found = null;
-    companies.forEach(company => {
-      const [cx, cy] = project(company.lat, company.lng, W, H);
-      const dist = Math.hypot(mx - cx, my - cy);
-      if (dist < 12) found = { company, x: mx, y: my };
-    });
-    setTooltip(found);
-  }, [companies, project]);
-
-  const handleClick = useCallback((e) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    const W = canvas.width; const H = canvas.height;
-
-    companies.forEach(company => {
-      const [cx, cy] = project(company.lat, company.lng, W, H);
-      if (Math.hypot(mx - cx, my - cy) < 12) onCompanyClick(company);
-    });
-  }, [companies, project, onCompanyClick]);
-
-  return (
-    <div style={{ position: "relative", width: "100%", height: "100%" }}>
-      <canvas
-        ref={canvasRef}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={() => setTooltip(null)}
-        onClick={handleClick}
-        style={{ width: "100%", height: "100%", cursor: "crosshair", display: "block" }}
-      />
-      {tooltip && (
-        <div style={{
-          position: "absolute",
-          left: tooltip.x + 14, top: tooltip.y - 10,
-          background: "rgba(15,23,42,0.95)",
-          border: "1px solid rgba(59,130,246,0.5)",
-          borderRadius: 6, padding: "8px 12px",
-          pointerEvents: "none", zIndex: 100,
-          backdropFilter: "blur(8px)",
-        }}>
-          <div style={{ color: "#F8FAFC", fontFamily: "JetBrains Mono, monospace", fontSize: 11, fontWeight: 700 }}>
-            {tooltip.company.ticker}
-          </div>
-          <div style={{ color: "#94A3B8", fontSize: 10, marginTop: 2 }}>{tooltip.company.name}</div>
-          <div style={{ color: "#64748B", fontSize: 10 }}>{tooltip.company.sector}</div>
-          {activeEvent && activeEvent.risks[tooltip.company.ticker] && (
-            <>
-              <div style={{ marginTop: 6, height: 1, background: "rgba(59,130,246,0.2)" }} />
-              <div style={{ marginTop: 4, color: riskColor(activeEvent.risks[tooltip.company.ticker].score), fontSize: 10, fontWeight: 700 }}>
-                RISK: {(activeEvent.risks[tooltip.company.ticker].score * 100).toFixed(0)}% — {riskLabel(activeEvent.risks[tooltip.company.ticker].score)}
-              </div>
-              <div style={{ color: "#94A3B8", fontSize: 9, marginTop: 2, maxWidth: 200, lineHeight: 1.4 }}>
-                {activeEvent.risks[tooltip.company.ticker].reasoning}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Event Feed ────────────────────────────────────────────────────────────────
 function EventFeed({ events, activeEvent, onEventSelect, onTrigger, processing }) {
   return (
@@ -348,13 +119,13 @@ function EventFeed({ events, activeEvent, onEventSelect, onTrigger, processing }
           </span>
         </div>
         <div style={{ color: "#64748B", fontSize: 9, fontFamily: "JetBrains Mono, monospace", marginBottom: 10 }}>
-          TRIGGER DEMO EVENT
+          SIMULATE EVENT
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
           {[
-            { label: "🌏 M7.4 Taiwan EQ", idx: 0, color: "#EF4444" },
-            { label: "🚫 China Sanctions", idx: 1, color: "#F97316" },
-            { label: "📈 Fed +75bps Hike", idx: 2, color: "#EAB308" },
+            { label: "M7.4 TAIWAN EARTHQUAKE", idx: 0, color: "#EF4444" },
+            { label: "US-CHINA EXPORT CONTROLS", idx: 1, color: "#F97316" },
+            { label: "FED RATE HIKE +75BPS", idx: 2, color: "#EAB308" },
           ].map(({ label, idx, color }) => (
             <button key={idx} onClick={() => onTrigger(idx)}
               style={{
@@ -425,7 +196,9 @@ function EventFeed({ events, activeEvent, onEventSelect, onTrigger, processing }
         {events.length === 0 && (
           <div style={{ textAlign: "center", color: "#334155", padding: "30px 0", fontSize: 10,
             fontFamily: "JetBrains Mono, monospace" }}>
-            NO EVENTS DETECTED<br />
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#3B82F6",
+              margin: "0 auto 10px", animation: "pulse 2s infinite" }} />
+            AWAITING SIGNAL<br />
             <span style={{ fontSize: 9, color: "#1E293B" }}>MONITORING GDELT + USGS + NEWSAPI</span>
           </div>
         )}
@@ -565,12 +338,12 @@ function StatusBar({ companies, activeEvent, processing }) {
       <span>S&P 500: {companies.length} TRACKED</span>
       {activeEvent && (
         <>
-          <span style={{ color: "#EF4444" }}>⚡ ACTIVE EVENT: {activeEvent.title}</span>
+          <span style={{ color: "#EF4444" }}>ACTIVE EVENT: {activeEvent.title}</span>
           <span style={{ color: "#F97316" }}>{exposed} EXPOSED</span>
           <span style={{ color: "#EF4444" }}>{critical} CRITICAL</span>
         </>
       )}
-      {processing && <span style={{ color: "#3B82F6" }}>◌ AGENT PROCESSING...</span>}
+      {processing && <span style={{ color: "#3B82F6" }}>AGENT PROCESSING...</span>}
       <div style={{ flex: 1 }} />
       <span>SURREALDB ● CONNECTED</span>
       <span>LANGGRAPH ● READY</span>
@@ -581,11 +354,44 @@ function StatusBar({ companies, activeEvent, processing }) {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function RiskTerrain() {
-  const [events, setEvents] = useState([]);
+  // Pre-seed the feed with the Fed rate event so dashboard isn't empty on load
+  const [events, setEvents] = useState(() => [
+    { ...DEMO_EVENTS[2], id: "evt_seed_1", created_at: new Date(Date.now() - 180 * 60000).toISOString() },
+    { ...DEMO_EVENTS[1], id: "evt_seed_2", created_at: new Date(Date.now() - 45 * 60000).toISOString() },
+  ]);
   const [activeEvent, setActiveEvent] = useState(null);
   const [view, setView] = useState("feed"); // "feed" | "report"
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [processing, setProcessing] = useState(false);
+  const globeRef = useRef(null);
+
+  // Auto-trigger the Taiwan earthquake 1.5s after mount
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const evt = { ...DEMO_EVENTS[0], id: `evt_auto_${Date.now()}`, created_at: new Date().toISOString() };
+      setProcessing(true);
+      setTimeout(() => {
+        setEvents(prev => [evt, ...prev]);
+        setActiveEvent(evt);
+        setView("report");
+        setProcessing(false);
+      }, 2200);
+    }, 1500);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Fly globe to event location when activeEvent changes
+  useEffect(() => {
+    const globe = globeRef.current;
+    if (!globe || !activeEvent) return;
+    // Fly to event epicenter
+    globe.pointOfView({ lat: activeEvent.lat, lng: activeEvent.lng, altitude: 2.0 }, 1200);
+    // Return to US overview after 4 seconds
+    const t = setTimeout(() => {
+      globe.pointOfView({ lat: 38, lng: -95, altitude: 1.6 }, 2000);
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [activeEvent]);
 
   const handleTrigger = useCallback((idx) => {
     const evt = { ...DEMO_EVENTS[idx], id: `evt_${Date.now()}`, created_at: new Date().toISOString() };
@@ -713,7 +519,7 @@ export default function RiskTerrain() {
               onCompanyClick={handleCompanyClick}
               enableAutoRotate={true}
               onGlobeReady={(globe) => {
-                // Zoom into the US on load
+                globeRef.current = globe;
                 globe.pointOfView({ lat: 38, lng: -95, altitude: 1.6 }, 0);
                 const controls = globe.controls();
                 controls.autoRotateSpeed = 0.2;
@@ -729,10 +535,10 @@ export default function RiskTerrain() {
               <div style={{ color: "#475569", fontSize: 8, fontFamily: "JetBrains Mono, monospace",
                 letterSpacing: 2, marginBottom: 8 }}>RISK LEVEL</div>
               {[
-                ["CRITICAL", "#EF4444", "≥ 80%"],
-                ["HIGH",     "#F97316", "60–79%"],
-                ["MEDIUM",   "#EAB308", "40–59%"],
-                ["LOW",      "#22C55E", "20–39%"],
+                ["CRITICAL", "#EF4444", ">= 80%"],
+                ["HIGH",     "#F97316", "60-79%"],
+                ["MEDIUM",   "#EAB308", "40-59%"],
+                ["LOW",      "#22C55E", "20-39%"],
                 ["NONE",     "#3B82F6", "< 20%"],
               ].map(([label, color, range]) => (
                 <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
@@ -756,18 +562,20 @@ export default function RiskTerrain() {
                 backdropFilter: "blur(2px)",
               }}>
                 <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 32, marginBottom: 12 }}>⚡</div>
+                  <div style={{ width: 12, height: 12, borderRadius: "50%", background: "#3B82F6",
+                    margin: "0 auto 16px", boxShadow: "0 0 20px rgba(59,130,246,0.6)",
+                    animation: "pulse 0.8s infinite" }} />
                   <div style={{ color: "#3B82F6", fontSize: 13, fontFamily: "JetBrains Mono, monospace",
                     fontWeight: 700, letterSpacing: 2 }}>AGENT PROCESSING</div>
                   <div style={{ color: "#334155", fontSize: 9, fontFamily: "JetBrains Mono, monospace",
                     marginTop: 6 }}>TRAVERSING S&P 500 KNOWLEDGE GRAPH</div>
                   <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 14 }}>
-                    {["EVENT_INTAKE","GEO_RESOLVER","GRAPH_TRAVERSER","RISK_SCORER"].map((n, i) => (
+                    {["INGEST","GEO_RESOLVE","GRAPH_TRAVERSE","SCORE","REPORT"].map((n, i) => (
                       <div key={n} style={{
                         color: "#1D4ED8", fontSize: 8, fontFamily: "JetBrains Mono, monospace",
                         background: "rgba(29,78,216,0.1)", border: "1px solid rgba(29,78,216,0.3)",
                         padding: "3px 7px", borderRadius: 3,
-                        animation: `pulse 0.8s ease ${i * 0.2}s infinite`,
+                        animation: `pulse 0.8s ease ${i * 0.15}s infinite`,
                       }}>{n}</div>
                     ))}
                   </div>
