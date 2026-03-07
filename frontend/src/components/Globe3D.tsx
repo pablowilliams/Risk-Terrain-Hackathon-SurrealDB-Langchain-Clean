@@ -51,6 +51,7 @@ interface Globe3DProps {
   showSupplyChain?: boolean
   highlightTicker?: string | null
   affectedTickers?: string[] | null
+  watchlistTickers?: Set<string> | null
   onCompanyClick?: (company: Company) => void
   enableAutoRotate?: boolean
   onGlobeReady?: (globe: GlobeMethods) => void
@@ -63,6 +64,7 @@ export default function Globe3D({
   showSupplyChain = false,
   highlightTicker,
   affectedTickers,
+  watchlistTickers,
   onCompanyClick,
   enableAutoRotate = true,
   onGlobeReady,
@@ -87,16 +89,17 @@ export default function Globe3D({
     companies.map(c => {
       const riskScore = activeEvent?.risks[c.ticker]?.score ?? 0
       const isHighlighted = highlightTicker === c.ticker
+      const inWatchlist = !watchlistTickers || watchlistTickers.size === 0 || watchlistTickers.has(c.ticker)
       return {
         lat: c.lat,
         lng: c.lng,
-        color: isHighlighted ? '#F8FAFC' : riskColor(riskScore),
-        size: isHighlighted ? 0.6 : (riskScore > 0 ? 0.2 + riskScore * 0.5 : 0.12),
+        color: !inWatchlist ? '#1E293B' : isHighlighted ? '#F8FAFC' : riskColor(riskScore),
+        size: !inWatchlist ? 0.05 : isHighlighted ? 0.6 : (riskScore > 0 ? 0.2 + riskScore * 0.5 : 0.12),
         label: c.ticker,
         ticker: c.ticker,
       }
     }),
-    [companies, activeEvent, highlightTicker]
+    [companies, activeEvent, highlightTicker, watchlistTickers]
   )
 
   const rings: GlobeRing[] = useMemo(() =>
@@ -117,6 +120,7 @@ export default function Globe3D({
     if (!activeEvent) return []
     return Object.entries(activeEvent.risks)
       .map(([ticker, risk]) => {
+        if (watchlistTickers && watchlistTickers.size > 0 && !watchlistTickers.has(ticker)) return null
         const company = companies.find(c => c.ticker === ticker)
         if (!company) return null
         return {
@@ -129,7 +133,7 @@ export default function Globe3D({
         }
       })
       .filter((a): a is GlobeArc => a !== null)
-  }, [activeEvent, companies])
+  }, [activeEvent, companies, watchlistTickers])
 
   // Supply chain arcs (company-to-company)
   const supplyArcs: SupplyArc[] = useMemo(() => {
@@ -137,6 +141,9 @@ export default function Globe3D({
 
     return supplyChainEdges
       .filter(edge => {
+        if (watchlistTickers && watchlistTickers.size > 0) {
+          if (!watchlistTickers.has(edge.from_ticker) && !watchlistTickers.has(edge.to_ticker)) return false
+        }
         if (highlightTicker) {
           return edge.from_ticker === highlightTicker || edge.to_ticker === highlightTicker
         }
@@ -161,7 +168,7 @@ export default function Globe3D({
         }
       })
       .filter((a): a is SupplyArc => a !== null)
-  }, [showSupplyChain, supplyChainEdges, companies, highlightTicker, affectedTickers])
+  }, [showSupplyChain, supplyChainEdges, companies, highlightTicker, affectedTickers, watchlistTickers])
 
   const allArcs: AnyArc[] = useMemo(() => {
     return [...supplyArcs, ...eventArcs]

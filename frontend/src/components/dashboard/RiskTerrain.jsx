@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Globe3D from "../Globe3D";
 import { SP500_SAMPLE as SHARED_COMPANIES, RELATIONSHIP_COLORS } from "../../data/mockData";
 import SupplyChainPanel from "./SupplyChainPanel";
@@ -122,6 +122,32 @@ function EventFeed({ events, activeEvent, onEventSelect, onTrigger, processing }
                   </span>
                 )}
               </div>
+              {event.news_articles && event.news_articles.length > 0 && (
+                <div style={{ marginTop: 6, borderTop: "1px solid rgba(59,130,246,0.1)", paddingTop: 5 }}>
+                  {event.news_articles.slice(0, 3).map((article, i) => (
+                    <a key={i} href={article.url} target="_blank" rel="noopener noreferrer"
+                      onClick={e => e.stopPropagation()}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 5, marginBottom: 2,
+                        padding: "2px 4px", borderRadius: 2, textDecoration: "none",
+                        transition: "background 0.15s",
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = "rgba(59,130,246,0.1)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    >
+                      <span style={{ color: "#22C55E", fontSize: 7, fontFamily: "JetBrains Mono, monospace",
+                        fontWeight: 700, flexShrink: 0 }}>
+                        {article.source}
+                      </span>
+                      <span style={{ color: "#64748B", fontSize: 8, overflow: "hidden",
+                        textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {article.title}
+                      </span>
+                      <span style={{ color: "#475569", fontSize: 9, flexShrink: 0 }}>&#x2197;</span>
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}
@@ -140,8 +166,10 @@ function EventFeed({ events, activeEvent, onEventSelect, onTrigger, processing }
 }
 
 // ── Risk Panel ────────────────────────────────────────────────────────────────
-function RiskPanel({ event, onClose, supplyChainEdges = [] }) {
-  const sorted = Object.entries(event.risks).sort((a, b) => b[1].score - a[1].score);
+function RiskPanel({ event, onClose, supplyChainEdges = [], watchlistTickers = new Set(), watchlistActive = false }) {
+  const sorted = Object.entries(event.risks)
+    .filter(([ticker]) => !watchlistActive || watchlistTickers.has(ticker))
+    .sort((a, b) => b[1].score - a[1].score);
   const [animating, setAnimating] = useState(true);
 
   useEffect(() => {
@@ -329,7 +357,7 @@ function RiskPanel({ event, onClose, supplyChainEdges = [] }) {
 }
 
 // ── Status Bar ────────────────────────────────────────────────────────────────
-function StatusBar({ companies, activeEvent, processing, isMobile }) {
+function StatusBar({ companies, activeEvent, processing, isMobile, watchlistActive, watchlistCount }) {
   const [clock, setClock] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setClock(new Date()), 1000);
@@ -347,7 +375,7 @@ function StatusBar({ companies, activeEvent, processing, isMobile }) {
       flexShrink: 0, overflow: "hidden", whiteSpace: "nowrap",
     }}>
       <span style={{ color: "#22C55E" }}>● LIVE</span>
-      {!isMobile && <span>S&P 500: {companies.length} TRACKED</span>}
+      {!isMobile && <span>{watchlistActive ? `WATCHING: ${watchlistCount}/${companies.length}` : `S&P 500: ${companies.length} TRACKED`}</span>}
       {activeEvent && (
         <>
           {!isMobile && <span style={{ color: "#EF4444" }}>ACTIVE EVENT: {activeEvent.title}</span>}
@@ -364,6 +392,121 @@ function StatusBar({ companies, activeEvent, processing, isMobile }) {
   );
 }
 
+// ── Sector abbreviations ─────────────────────────────────────────────────────
+const SECTOR_SHORT = {
+  'Technology': 'TECH', 'Financials': 'FIN', 'Healthcare': 'HC',
+  'Energy': 'ENRG', 'Consumer Disc': 'DISC', 'Consumer Staples': 'STPL',
+  'Industrials': 'IND', 'Communication': 'COMM', 'Materials': 'MATL',
+  'Utilities': 'UTIL', 'Real Estate': 'RE',
+};
+
+// ── Watchlist Bar ────────────────────────────────────────────────────────────
+function WatchlistBar({ sectors, watchlistTickers, watchlistMode, onToggleSector, onToggleTicker, onReset, companies, isMobile }) {
+  const [search, setSearch] = useState("");
+  const searchResults = useMemo(() => {
+    if (!search) return [];
+    const q = search.toUpperCase();
+    return companies.filter(c => c.ticker.includes(q) || c.name.toUpperCase().includes(q)).slice(0, 6);
+  }, [search, companies]);
+
+  return (
+    <div style={{
+      background: "rgba(8,13,26,0.98)", borderBottom: "1px solid rgba(139,92,246,0.2)",
+      padding: isMobile ? "8px 10px" : "8px 20px",
+      display: "flex", alignItems: "center", gap: 8, flexShrink: 0, zIndex: 10,
+      flexWrap: isMobile ? "wrap" : "nowrap",
+    }}>
+      {/* ALL button */}
+      <button onClick={onReset} style={{
+        background: watchlistMode === "all" ? "rgba(139,92,246,0.2)" : "none",
+        border: `1px solid ${watchlistMode === "all" ? "rgba(139,92,246,0.5)" : "rgba(59,130,246,0.15)"}`,
+        color: watchlistMode === "all" ? "#C4B5FD" : "#475569",
+        padding: "3px 10px", borderRadius: 3, cursor: "pointer",
+        fontSize: 8, fontFamily: "JetBrains Mono, monospace", letterSpacing: 1, fontWeight: 700,
+        flexShrink: 0,
+      }}>ALL</button>
+
+      <div style={{ width: 1, height: 20, background: "rgba(59,130,246,0.15)", flexShrink: 0 }} />
+
+      {/* Sector pills */}
+      <div style={{
+        display: "flex", gap: 4, overflowX: "auto", flex: 1,
+        scrollbarWidth: "none", msOverflowStyle: "none",
+      }}>
+        {sectors.map(([sector, tickers]) => {
+          const allSelected = tickers.every(t => watchlistTickers.has(t));
+          const someSelected = tickers.some(t => watchlistTickers.has(t));
+          return (
+            <button key={sector} onClick={() => onToggleSector(tickers)} style={{
+              background: allSelected ? "rgba(139,92,246,0.2)" : someSelected ? "rgba(139,92,246,0.1)" : "none",
+              border: `1px solid ${allSelected ? "rgba(139,92,246,0.5)" : someSelected ? "rgba(139,92,246,0.3)" : "rgba(59,130,246,0.1)"}`,
+              color: allSelected ? "#C4B5FD" : someSelected ? "#A78BFA" : "#475569",
+              padding: "3px 8px", borderRadius: 3, cursor: "pointer",
+              fontSize: 7, fontFamily: "JetBrains Mono, monospace", letterSpacing: 0.5,
+              whiteSpace: "nowrap", flexShrink: 0, transition: "all 0.15s",
+            }}>
+              {SECTOR_SHORT[sector] || sector} ({tickers.length})
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ width: 1, height: 20, background: "rgba(59,130,246,0.15)", flexShrink: 0 }} />
+
+      {/* Search */}
+      <div style={{ position: "relative", flexShrink: 0 }}>
+        <input
+          value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="TICKER..."
+          style={{
+            background: "rgba(15,23,42,0.8)", border: "1px solid rgba(59,130,246,0.15)",
+            color: "#F8FAFC", borderRadius: 3, padding: "3px 8px", width: isMobile ? 80 : 100,
+            fontSize: 8, fontFamily: "JetBrains Mono, monospace", outline: "none",
+          }}
+          onFocus={e => e.target.style.borderColor = "rgba(139,92,246,0.5)"}
+          onBlur={e => { e.target.style.borderColor = "rgba(59,130,246,0.15)"; setTimeout(() => setSearch(""), 200); }}
+        />
+        {searchResults.length > 0 && (
+          <div style={{
+            position: "absolute", top: "100%", left: 0, right: 0, marginTop: 2,
+            background: "rgba(8,13,26,0.98)", border: "1px solid rgba(139,92,246,0.3)",
+            borderRadius: 4, zIndex: 50, overflow: "hidden",
+          }}>
+            {searchResults.map(c => {
+              const selected = watchlistTickers.has(c.ticker);
+              return (
+                <div key={c.ticker} onMouseDown={() => onToggleTicker(c.ticker)} style={{
+                  padding: "4px 8px", cursor: "pointer",
+                  background: selected ? "rgba(139,92,246,0.15)" : "transparent",
+                  display: "flex", alignItems: "center", gap: 6,
+                  transition: "background 0.1s",
+                }}
+                  onMouseEnter={e => e.currentTarget.style.background = selected ? "rgba(139,92,246,0.2)" : "rgba(59,130,246,0.1)"}
+                  onMouseLeave={e => e.currentTarget.style.background = selected ? "rgba(139,92,246,0.15)" : "transparent"}
+                >
+                  <span style={{ color: selected ? "#C4B5FD" : "#F8FAFC", fontSize: 9, fontWeight: 700,
+                    fontFamily: "JetBrains Mono, monospace", minWidth: 36 }}>{c.ticker}</span>
+                  <span style={{ color: "#64748B", fontSize: 7, overflow: "hidden", textOverflow: "ellipsis",
+                    whiteSpace: "nowrap" }}>{c.name}</span>
+                  {selected && <span style={{ color: "#8B5CF6", fontSize: 8, marginLeft: "auto" }}>&#x2713;</span>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Count */}
+      {watchlistMode === "custom" && watchlistTickers.size > 0 && (
+        <span style={{ color: "#A78BFA", fontSize: 8, fontFamily: "JetBrains Mono, monospace",
+          letterSpacing: 1, flexShrink: 0 }}>
+          {watchlistTickers.size} SELECTED
+        </span>
+      )}
+    </div>
+  );
+}
+
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function RiskTerrain() {
   const [events, setEvents] = useState([]);
@@ -376,11 +519,56 @@ export default function RiskTerrain() {
   const globeRef = useRef(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [watchlistOpen, setWatchlistOpen] = useState(false);
+  const [watchlistMode, setWatchlistMode] = useState("all");
+  const [watchlistTickers, setWatchlistTickers] = useState(new Set());
+
+  const watchlistActive = watchlistMode === "custom" && watchlistTickers.size > 0;
+
+  const sectors = useMemo(() => {
+    const map = {};
+    SP500_SAMPLE.forEach(c => {
+      if (!map[c.sector]) map[c.sector] = [];
+      map[c.sector].push(c.ticker);
+    });
+    return Object.entries(map).sort((a, b) => b[1].length - a[1].length);
+  }, []);
+
+  const filteredEvents = useMemo(() => {
+    if (!watchlistActive) return events;
+    return events.filter(event =>
+      Object.keys(event.risks).some(ticker => watchlistTickers.has(ticker))
+    );
+  }, [events, watchlistActive, watchlistTickers]);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const handleToggleSector = useCallback((sectorTickers) => {
+    setWatchlistMode("custom");
+    setWatchlistTickers(prev => {
+      const next = new Set(prev);
+      const allSelected = sectorTickers.every(t => next.has(t));
+      sectorTickers.forEach(t => allSelected ? next.delete(t) : next.add(t));
+      return next;
+    });
+  }, []);
+
+  const handleToggleTicker = useCallback((ticker) => {
+    setWatchlistMode("custom");
+    setWatchlistTickers(prev => {
+      const next = new Set(prev);
+      next.has(ticker) ? next.delete(ticker) : next.add(ticker);
+      return next;
+    });
+  }, []);
+
+  const handleWatchlistReset = useCallback(() => {
+    setWatchlistMode("all");
+    setWatchlistTickers(new Set());
   }, []);
 
   // Fetch existing events from backend on mount
@@ -521,9 +709,9 @@ export default function RiskTerrain() {
 
           <div style={{ display: "flex", gap: isMobile ? 10 : 20, alignItems: "center" }}>
             {!isMobile && [
-              { label: "COMPANIES", value: SP500_SAMPLE.length, color: "#3B82F6" },
+              { label: watchlistActive ? "WATCHING" : "COMPANIES", value: watchlistActive ? watchlistTickers.size : SP500_SAMPLE.length, color: watchlistActive ? "#8B5CF6" : "#3B82F6" },
               { label: "EDGES", value: supplyChain.length, color: "#8B5CF6" },
-              { label: "EVENTS", value: events.length, color: "#F97316" },
+              { label: "EVENTS", value: filteredEvents.length, color: "#F97316" },
               { label: "CRITICAL", value: activeEvent ? Object.values(activeEvent.risks).filter(r => r.score >= 0.8).length : 0, color: "#EF4444" },
             ].map(({ label, value, color }) => (
               <div key={label} style={{ textAlign: "center" }}>
@@ -553,6 +741,24 @@ export default function RiskTerrain() {
                 </button>
               ))}
             </div>
+            <button onClick={() => setWatchlistOpen(prev => !prev)} style={{
+              background: watchlistActive ? "rgba(139,92,246,0.2)" : watchlistOpen ? "rgba(139,92,246,0.1)" : "none",
+              border: `1px solid ${watchlistActive ? "rgba(139,92,246,0.5)" : "rgba(59,130,246,0.1)"}`,
+              color: watchlistActive ? "#C4B5FD" : watchlistOpen ? "#A78BFA" : "#475569",
+              padding: "4px 12px", borderRadius: 4, cursor: "pointer",
+              fontSize: 9, fontFamily: "JetBrains Mono, monospace", letterSpacing: 1,
+              transition: "all 0.15s", position: "relative",
+            }}>
+              FILTER
+              {watchlistActive && (
+                <span style={{
+                  position: "absolute", top: -5, right: -5,
+                  background: "#8B5CF6", color: "#F8FAFC",
+                  fontSize: 7, fontWeight: 800, borderRadius: 6,
+                  padding: "1px 4px", minWidth: 14, textAlign: "center",
+                }}>{watchlistTickers.size}</span>
+              )}
+            </button>
             {isMobile && (
               <button onClick={() => setPanelOpen(!panelOpen)} style={{
                 background: panelOpen ? "rgba(29,78,216,0.2)" : "none",
@@ -564,6 +770,20 @@ export default function RiskTerrain() {
             )}
           </div>
         </div>
+
+        {/* Watchlist Bar */}
+        {watchlistOpen && (
+          <WatchlistBar
+            sectors={sectors}
+            watchlistTickers={watchlistTickers}
+            watchlistMode={watchlistMode}
+            onToggleSector={handleToggleSector}
+            onToggleTicker={handleToggleTicker}
+            onReset={handleWatchlistReset}
+            companies={SP500_SAMPLE}
+            isMobile={isMobile}
+          />
+        )}
 
         {/* Main Content */}
         <div style={{ flex: 1, display: "flex", overflow: "hidden", zIndex: 2, position: "relative" }}>
@@ -577,6 +797,7 @@ export default function RiskTerrain() {
               showSupplyChain={view === "graph" || (view === "report" && !!activeEvent)}
               highlightTicker={view === "graph" ? graphTicker : null}
               affectedTickers={view === "report" && activeEvent ? Object.keys(activeEvent.risks) : null}
+              watchlistTickers={watchlistActive ? watchlistTickers : null}
               onCompanyClick={(company) => {
                 if (view === "graph") {
                   setGraphTicker(prev => prev === company.ticker ? null : company.ticker);
@@ -730,7 +951,7 @@ export default function RiskTerrain() {
                 fontWeight: 700, letterSpacing: 1,
                 boxShadow: "0 4px 20px rgba(29,78,216,0.4)",
               }}>
-                {view === "graph" ? `${supplyChain.length} EDGES` : `${events.length} EVENTS`} · VIEW PANEL
+                {view === "graph" ? `${supplyChain.length} EDGES` : `${filteredEvents.length} EVENTS`} · VIEW PANEL
               </button>
             )}
           </div>
@@ -775,7 +996,7 @@ export default function RiskTerrain() {
                 />
               ) : view === "feed" || !activeEvent ? (
                 <EventFeed
-                  events={events}
+                  events={filteredEvents}
                   activeEvent={activeEvent}
                   onEventSelect={(event) => { handleEventSelect(event); if (isMobile) setPanelOpen(false); }}
                   onTrigger={(idx) => { handleTrigger(idx); if (isMobile) setPanelOpen(false); }}
@@ -786,6 +1007,8 @@ export default function RiskTerrain() {
                   event={activeEvent}
                   onClose={() => setView("feed")}
                   supplyChainEdges={supplyChain}
+                  watchlistTickers={watchlistTickers}
+                  watchlistActive={watchlistActive}
                 />
               )}
             </div>
@@ -798,6 +1021,8 @@ export default function RiskTerrain() {
           activeEvent={activeEvent}
           processing={processing}
           isMobile={isMobile}
+          watchlistActive={watchlistActive}
+          watchlistCount={watchlistTickers.size}
         />
       </div>
     </>
