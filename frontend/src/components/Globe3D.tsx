@@ -22,6 +22,14 @@ interface GlobeRing {
   repeatPeriod: number
 }
 
+interface GlobeArc {
+  startLat: number
+  startLng: number
+  endLat: number
+  endLng: number
+  score: number
+}
+
 interface Globe3DProps {
   companies: Company[]
   activeEvent?: DemoEvent | null
@@ -66,6 +74,23 @@ export default function Globe3D({
       : [],
     [activeEvent]
   )
+
+  const arcs: GlobeArc[] = useMemo(() => {
+    if (!activeEvent) return []
+    return Object.entries(activeEvent.risks)
+      .map(([ticker, risk]) => {
+        const company = companies.find(c => c.ticker === ticker)
+        if (!company) return null
+        return {
+          startLat: activeEvent.lat,
+          startLng: activeEvent.lng,
+          endLat: company.lat,
+          endLng: company.lng,
+          score: risk.score,
+        }
+      })
+      .filter((a): a is GlobeArc => a !== null)
+  }, [activeEvent, companies])
 
   const handleGlobeReady = useCallback(() => {
     const globe = globeRef.current
@@ -135,6 +160,27 @@ export default function Globe3D({
         ">${pt.ticker}</div>`
       }}
       onPointClick={handlePointClick}
+      // Arcs
+      arcsData={arcs}
+      arcStartLat="startLat"
+      arcStartLng="startLng"
+      arcEndLat="endLat"
+      arcEndLng="endLng"
+      arcColor={(d: object) => {
+        const a = d as GlobeArc
+        return a.score >= 0.8
+          ? ['rgba(239,68,68,0.6)', 'rgba(239,68,68,0.2)']
+          : ['rgba(249,115,22,0.5)', 'rgba(249,115,22,0.15)']
+      }}
+      arcStroke={(d: object) => {
+        const a = d as GlobeArc
+        return 0.3 + a.score * 1.2
+      }}
+      arcDashLength={0.4}
+      arcDashGap={0.2}
+      arcDashAnimateTime={1500}
+      arcAltitudeAutoScale={0.4}
+      arcsTransitionDuration={800}
       // Rings
       ringsData={rings}
       ringLat="lat"

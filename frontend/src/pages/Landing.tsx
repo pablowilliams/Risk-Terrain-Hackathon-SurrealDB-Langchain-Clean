@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import type { GlobeMethods } from 'react-globe.gl'
 import Globe3D from '../components/Globe3D'
-import { SP500_SAMPLE } from '../data/mockData'
+import { SP500_SAMPLE, DEMO_EVENTS } from '../data/mockData'
 
 // ── Design Tokens (matching riskterrain.jsx exactly) ──────────────────────────
 const T = {
@@ -25,6 +25,53 @@ const T = {
   mono: "'JetBrains Mono', monospace",
   syne: "'Syne', sans-serif",
 } as const
+
+// ── Animated Counter ─────────────────────────────────────────────────────────
+function AnimatedCounter({ target, duration = 1500 }: { target: number; duration?: number }) {
+  const [count, setCount] = useState(0)
+  const started = useRef(false)
+  const ref = useRef<HTMLSpanElement>(null)
+
+  useEffect(() => {
+    if (started.current) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !started.current) {
+          started.current = true
+          const start = performance.now()
+          const tick = (now: number) => {
+            const elapsed = now - start
+            const progress = Math.min(elapsed / duration, 1)
+            // ease-out cubic
+            const eased = 1 - Math.pow(1 - progress, 3)
+            setCount(Math.round(eased * target))
+            if (progress < 1) requestAnimationFrame(tick)
+          }
+          requestAnimationFrame(tick)
+        }
+      },
+      { threshold: 0.5 },
+    )
+    if (ref.current) observer.observe(ref.current)
+    return () => observer.disconnect()
+  }, [target, duration])
+
+  return <span ref={ref}>{count}</span>
+}
+
+// ── Ticker items ─────────────────────────────────────────────────────────────
+const TICKER_ITEMS = [
+  { text: 'M7.4 EARTHQUAKE DETECTED — TAIWAN — 14:32 UTC', critical: true },
+  { text: 'RISK SCORE UPDATE: TSMC 0.94 CRITICAL', critical: true },
+  { text: 'LANGGRAPH AGENT: 8/8 NODES COMPLETE — 2.3s', critical: false },
+  { text: 'SURREALDB: 847 GRAPH EDGES TRAVERSED', critical: false },
+  { text: 'GEOPOLITICAL: EU SANCTIONS — ENERGY SECTOR EXPOSED', critical: true },
+  { text: 'RISK SCORE UPDATE: NVDA 0.72 HIGH', critical: true },
+  { text: 'EVENT CLASSIFIED: NATURAL_DISASTER SEV-5', critical: false },
+  { text: 'CLAUDE SONNET: RISK SYNTHESIS COMPLETE — 18 COMPANIES SCORED', critical: false },
+  { text: 'SUPPLY CHAIN ALERT: SECOND-ORDER EXPOSURE DETECTED — AMD, QCOM', critical: true },
+  { text: 'HISTORICAL MATCH: 2011 TOHOKU EARTHQUAKE — 87% SIMILARITY', critical: false },
+]
 
 // ── Scroll-driven globe controller ───────────────────────────────────────────
 function useScrollGlobe(globeRef: React.MutableRefObject<GlobeMethods | null>) {
@@ -118,6 +165,7 @@ export default function Landing() {
       }}>
         <Globe3D
           companies={SP500_SAMPLE}
+          activeEvent={DEMO_EVENTS[0]}
           enableAutoRotate={false}
           onGlobeReady={handleGlobeReady}
         />
@@ -189,7 +237,7 @@ export default function Landing() {
             }}
           >
             <span style={{ width: 40, height: 1, background: T.blue, display: 'inline-block' }} />
-            LONDON HACKATHON 2025
+            GEOSPATIAL INTELLIGENCE PLATFORM
             <span style={{ width: 40, height: 1, background: T.blue, display: 'inline-block' }} />
           </motion.div>
 
@@ -228,7 +276,7 @@ export default function Landing() {
             style={{ display: 'flex', gap: 40, justifyContent: 'center', marginBottom: 48 }}
           >
             {[
-              { value: String(SP500_SAMPLE.length), label: 'COMPANIES TRACKED', color: T.blue },
+              { value: <AnimatedCounter target={SP500_SAMPLE.length} />, label: 'COMPANIES TRACKED', color: T.blue },
               { value: 'LIVE', label: 'EVENT MONITORING', color: T.green },
               { value: 'AI', label: 'RISK SCORING', color: T.orange },
             ].map(({ value, label, color }) => (
@@ -281,6 +329,44 @@ export default function Landing() {
           <div style={{ fontSize: 16, color: T.text3 }}>&darr;</div>
         </motion.div>
       </section>
+
+      {/* ═══ LIVE TICKER ═══ */}
+      <div style={{
+        position: 'relative', zIndex: 2,
+        background: 'rgba(8,13,26,0.95)',
+        borderTop: `1px solid ${T.border}`,
+        borderBottom: `1px solid ${T.border}`,
+        overflow: 'hidden',
+        padding: '10px 0',
+      }}>
+        <div style={{
+          display: 'flex', whiteSpace: 'nowrap' as const,
+          animation: 'ticker 40s linear infinite',
+        }}>
+          {/* Duplicate content for seamless loop */}
+          {[...TICKER_ITEMS, ...TICKER_ITEMS].map((item, i) => (
+            <span key={i} style={{
+              fontSize: 8, fontFamily: T.mono, letterSpacing: 1,
+              color: item.critical ? T.red : T.text3,
+              padding: '0 24px',
+              display: 'inline-flex', alignItems: 'center', gap: 24,
+            }}>
+              <span style={{
+                width: 3, height: 3, borderRadius: '50%',
+                background: item.critical ? T.red : T.blue,
+                display: 'inline-block', flexShrink: 0,
+              }} />
+              {item.text}
+            </span>
+          ))}
+        </div>
+        <style>{`
+          @keyframes ticker {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+          }
+        `}</style>
+      </div>
 
       {/* ═══ HOW IT WORKS ═══ */}
       <section style={{
@@ -582,7 +668,7 @@ export default function Landing() {
           fontSize: 8, fontFamily: T.mono, letterSpacing: 2,
           color: T.text4,
         }}>
-          RISKTERRAIN &middot; LONDON HACKATHON 2025 &middot; BUILT WITH CLAUDE + SURREALDB + LANGGRAPH
+          RISKTERRAIN &middot; BUILT WITH CLAUDE + SURREALDB + LANGGRAPH
         </div>
       </section>
     </motion.div>
