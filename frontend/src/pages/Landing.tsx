@@ -100,12 +100,12 @@ function useScrollGlobe(globeRef: React.MutableRefObject<GlobeMethods | null>) {
     const totalHeight = document.documentElement.scrollHeight - vh
     const progress = totalHeight > 0 ? Math.min(scrollY / totalHeight, 1) : 0
 
-    // Zoom out as user scrolls through entire page (altitude 2.5 → 5.0)
-    const altitude = 2.5 + progress * 2.5
-    // Tilt the view (lat sweeps 20 → 55)
-    const lat = 20 + progress * 35
-    // Rotate longitude across full page
-    const lng = -40 + progress * 120
+    // Start centered on Taiwan (event epicenter with arcs), zoom out as user scrolls
+    const altitude = 2.2 + progress * 2.8
+    // Tilt the view (lat sweeps 25 → 55)
+    const lat = 25 + progress * 30
+    // Start at Taiwan (lng 121), rotate westward across full page
+    const lng = 121 - progress * 160
 
     globe.pointOfView({ lat, lng, altitude }, 0)
   }, [scrollY, globeRef])
@@ -209,7 +209,7 @@ export default function Landing() {
           </div>
           <div style={{ flex: 1 }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {['CLAUDE', 'SURREALDB', 'LANGGRAPH'].map(badge => (
+            {['SURREALDB', 'LANGGRAPH'].map(badge => (
               <span key={badge} style={{
                 fontSize: 8, fontFamily: T.mono, letterSpacing: 1,
                 color: T.deepBlue,
