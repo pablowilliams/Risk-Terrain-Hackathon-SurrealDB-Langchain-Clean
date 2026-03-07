@@ -1,43 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import Globe3D from "../Globe3D";
+import { SP500_SAMPLE as SHARED_COMPANIES } from "../../data/mockData";
 
-// ── Mock Data ─────────────────────────────────────────────────────────────────
-const SP500_SAMPLE = [
-  { ticker: "AAPL",  name: "Apple Inc.",               sector: "Technology",      lat: 37.33, lng: -122.03, mc: 3100 },
-  { ticker: "NVDA",  name: "NVIDIA Corporation",        sector: "Technology",      lat: 37.36, lng: -121.99, mc: 2200 },
-  { ticker: "MSFT",  name: "Microsoft Corporation",     sector: "Technology",      lat: 47.64, lng: -122.13, mc: 3000 },
-  { ticker: "AMZN",  name: "Amazon.com Inc.",           sector: "Consumer Disc",   lat: 47.61, lng: -122.33, mc: 1900 },
-  { ticker: "GOOGL", name: "Alphabet Inc.",             sector: "Communication",   lat: 37.42, lng: -122.08, mc: 2100 },
-  { ticker: "META",  name: "Meta Platforms Inc.",       sector: "Communication",   lat: 37.48, lng: -122.15, mc: 1400 },
-  { ticker: "TSLA",  name: "Tesla Inc.",                sector: "Consumer Disc",   lat: 30.22, lng: -97.65,  mc: 800  },
-  { ticker: "AMD",   name: "Advanced Micro Devices",    sector: "Technology",      lat: 37.33, lng: -121.97, mc: 290  },
-  { ticker: "QCOM",  name: "Qualcomm Inc.",             sector: "Technology",      lat: 32.88, lng: -117.21, mc: 180  },
-  { ticker: "INTC",  name: "Intel Corporation",         sector: "Technology",      lat: 37.38, lng: -121.96, mc: 120  },
-  { ticker: "TSM",   name: "TSMC",                      sector: "Technology",      lat: 24.78, lng: 120.98,  mc: 650  },
-  { ticker: "JPM",   name: "JPMorgan Chase",            sector: "Financials",      lat: 40.75, lng: -73.97,  mc: 580  },
-  { ticker: "BAC",   name: "Bank of America",           sector: "Financials",      lat: 35.22, lng: -80.84,  mc: 310  },
-  { ticker: "GS",    name: "Goldman Sachs",             sector: "Financials",      lat: 40.71, lng: -74.01,  mc: 160  },
-  { ticker: "XOM",   name: "Exxon Mobil",               sector: "Energy",          lat: 32.78, lng: -96.80,  mc: 490  },
-  { ticker: "CVX",   name: "Chevron Corporation",       sector: "Energy",          lat: 37.92, lng: -122.06, mc: 280  },
-  { ticker: "UNH",   name: "UnitedHealth Group",        sector: "Healthcare",      lat: 44.97, lng: -93.46,  mc: 470  },
-  { ticker: "JNJ",   name: "Johnson & Johnson",         sector: "Healthcare",      lat: 40.73, lng: -74.50,  mc: 390  },
-  { ticker: "PG",    name: "Procter & Gamble",          sector: "Consumer Staples",lat: 39.10, lng: -84.51,  mc: 380  },
-  { ticker: "KO",    name: "The Coca-Cola Company",     sector: "Consumer Staples",lat: 33.79, lng: -84.38,  mc: 260  },
-  { ticker: "WMT",   name: "Walmart Inc.",              sector: "Consumer Staples",lat: 36.37, lng: -94.21,  mc: 730  },
-  { ticker: "HD",    name: "Home Depot",                sector: "Consumer Disc",   lat: 33.88, lng: -84.47,  mc: 360  },
-  { ticker: "BA",    name: "Boeing Company",            sector: "Industrials",     lat: 47.52, lng: -122.19, mc: 130  },
-  { ticker: "CAT",   name: "Caterpillar Inc.",          sector: "Industrials",     lat: 40.11, lng: -88.20,  mc: 180  },
-  { ticker: "GE",    name: "GE Aerospace",              sector: "Industrials",     lat: 42.35, lng: -71.06,  mc: 190  },
-  { ticker: "F",     name: "Ford Motor Company",        sector: "Consumer Disc",   lat: 42.33, lng: -83.04,  mc: 50   },
-  { ticker: "GM",    name: "General Motors",            sector: "Consumer Disc",   lat: 42.33, lng: -83.05,  mc: 55   },
-  { ticker: "DIS",   name: "Walt Disney Company",       sector: "Communication",   lat: 33.81, lng: -117.92, mc: 200  },
-  { ticker: "NFLX",  name: "Netflix Inc.",              sector: "Communication",   lat: 37.26, lng: -121.96, mc: 320  },
-  { ticker: "V",     name: "Visa Inc.",                 sector: "Financials",      lat: 37.52, lng: -121.95, mc: 570  },
-  { ticker: "MA",    name: "Mastercard Inc.",           sector: "Financials",      lat: 40.75, lng: -73.97,  mc: 460  },
-  { ticker: "CRM",   name: "Salesforce Inc.",           sector: "Technology",      lat: 37.79, lng: -122.40, mc: 290  },
-  { ticker: "ADBE",  name: "Adobe Inc.",                sector: "Technology",      lat: 37.33, lng: -121.89, mc: 230  },
-  { ticker: "ORCL",  name: "Oracle Corporation",        sector: "Technology",      lat: 30.40, lng: -97.74,  mc: 380  },
-  { ticker: "IBM",   name: "IBM Corporation",           sector: "Technology",      lat: 41.10, lng: -73.72,  mc: 200  },
-];
+// Use shared company data (154 companies)
+const SP500_SAMPLE = SHARED_COMPANIES;
 
 const DEMO_EVENTS = [
   {
@@ -739,13 +705,19 @@ export default function RiskTerrain() {
         {/* Main Content */}
         <div style={{ flex: 1, display: "flex", overflow: "hidden", zIndex: 2 }}>
 
-          {/* Map */}
+          {/* 3D Globe */}
           <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-            <WorldMap
+            <Globe3D
               companies={SP500_SAMPLE}
               activeEvent={activeEvent}
               onCompanyClick={handleCompanyClick}
-              selectedCompany={selectedCompany}
+              enableAutoRotate={true}
+              onGlobeReady={(globe) => {
+                // Zoom into the US on load
+                globe.pointOfView({ lat: 38, lng: -95, altitude: 1.6 }, 0);
+                const controls = globe.controls();
+                controls.autoRotateSpeed = 0.2;
+              }}
             />
 
             {/* Legend */}
