@@ -1,4 +1,4 @@
-import { useRef, useCallback, useMemo } from 'react'
+import { useRef, useCallback, useMemo, useState, useEffect } from 'react'
 import Globe from 'react-globe.gl'
 import type { GlobeMethods } from 'react-globe.gl'
 import * as THREE from 'three'
@@ -46,6 +46,21 @@ export default function Globe3D({
   onGlobeReady,
 }: Globe3DProps) {
   const globeRef = useRef<GlobeMethods | undefined>(undefined)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
+
+  // Measure container so globe renders at correct size (not window size)
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(entries => {
+      const { width, height } = entries[0].contentRect
+      setDimensions({ width, height })
+    })
+    ro.observe(el)
+    setDimensions({ width: el.offsetWidth, height: el.offsetHeight })
+    return () => ro.disconnect()
+  }, [])
 
   const points: GlobePoint[] = useMemo(() =>
     companies.map(c => {
@@ -130,66 +145,72 @@ export default function Globe3D({
   )
 
   return (
-    <Globe
-      ref={globeRef}
-      onGlobeReady={handleGlobeReady}
-      globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
-      bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
-      atmosphereColor="#1a6bcc"
-      atmosphereAltitude={0.18}
-      showAtmosphere={true}
-      // Points
-      pointsData={points}
-      pointLat="lat"
-      pointLng="lng"
-      pointColor="color"
-      pointAltitude={0.01}
-      pointRadius="size"
-      pointLabel={(p: object) => {
-        const pt = p as GlobePoint
-        return `<div style="
-          background: rgba(8,13,26,0.95);
-          border: 1px solid rgba(59,130,246,0.5);
-          border-radius: 6px;
-          padding: 6px 10px;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 11px;
-          font-weight: 700;
-          color: #F8FAFC;
-          backdrop-filter: blur(8px);
-        ">${pt.ticker}</div>`
-      }}
-      onPointClick={handlePointClick}
-      // Arcs
-      arcsData={arcs}
-      arcStartLat="startLat"
-      arcStartLng="startLng"
-      arcEndLat="endLat"
-      arcEndLng="endLng"
-      arcColor={(d: object) => {
-        const a = d as GlobeArc
-        return a.score >= 0.8
-          ? ['rgba(239,68,68,0.6)', 'rgba(239,68,68,0.2)']
-          : ['rgba(249,115,22,0.5)', 'rgba(249,115,22,0.15)']
-      }}
-      arcStroke={(d: object) => {
-        const a = d as GlobeArc
-        return 0.3 + a.score * 1.2
-      }}
-      arcDashLength={0.4}
-      arcDashGap={0.2}
-      arcDashAnimateTime={1500}
-      arcAltitudeAutoScale={0.4}
-      arcsTransitionDuration={800}
-      // Rings
-      ringsData={rings}
-      ringLat="lat"
-      ringLng="lng"
-      ringMaxRadius="maxR"
-      ringPropagationSpeed="propagationSpeed"
-      ringRepeatPeriod="repeatPeriod"
-      ringColor={() => (t: number) => `rgba(239,68,68,${1 - t})`}
-      ringAltitude={0.002}
-    />
+    <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
+      {dimensions.width > 0 && dimensions.height > 0 && (
+        <Globe
+          ref={globeRef}
+          width={dimensions.width}
+          height={dimensions.height}
+          onGlobeReady={handleGlobeReady}
+          globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
+          bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
+          atmosphereColor="#1a6bcc"
+          atmosphereAltitude={0.18}
+          showAtmosphere={true}
+          // Points
+          pointsData={points}
+          pointLat="lat"
+          pointLng="lng"
+          pointColor="color"
+          pointAltitude={0.01}
+          pointRadius="size"
+          pointLabel={(p: object) => {
+            const pt = p as GlobePoint
+            return `<div style="
+              background: rgba(8,13,26,0.95);
+              border: 1px solid rgba(59,130,246,0.5);
+              border-radius: 6px;
+              padding: 6px 10px;
+              font-family: 'JetBrains Mono', monospace;
+              font-size: 11px;
+              font-weight: 700;
+              color: #F8FAFC;
+              backdrop-filter: blur(8px);
+            ">${pt.ticker}</div>`
+          }}
+          onPointClick={handlePointClick}
+          // Arcs
+          arcsData={arcs}
+          arcStartLat="startLat"
+          arcStartLng="startLng"
+          arcEndLat="endLat"
+          arcEndLng="endLng"
+          arcColor={(d: object) => {
+            const a = d as GlobeArc
+            return a.score >= 0.8
+              ? ['rgba(239,68,68,0.6)', 'rgba(239,68,68,0.2)']
+              : ['rgba(249,115,22,0.5)', 'rgba(249,115,22,0.15)']
+          }}
+          arcStroke={(d: object) => {
+            const a = d as GlobeArc
+            return 0.3 + a.score * 1.2
+          }}
+          arcDashLength={0.4}
+          arcDashGap={0.2}
+          arcDashAnimateTime={1500}
+          arcAltitudeAutoScale={0.4}
+          arcsTransitionDuration={800}
+          // Rings
+          ringsData={rings}
+          ringLat="lat"
+          ringLng="lng"
+          ringMaxRadius="maxR"
+          ringPropagationSpeed="propagationSpeed"
+          ringRepeatPeriod="repeatPeriod"
+          ringColor={() => (t: number) => `rgba(239,68,68,${1 - t})`}
+          ringAltitude={0.002}
+        />
+      )}
+    </div>
   )
 }

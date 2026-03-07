@@ -318,7 +318,7 @@ function RiskPanel({ event, onClose }) {
 }
 
 // ── Status Bar ────────────────────────────────────────────────────────────────
-function StatusBar({ companies, activeEvent, processing }) {
+function StatusBar({ companies, activeEvent, processing, isMobile }) {
   const [clock, setClock] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setClock(new Date()), 1000);
@@ -331,22 +331,23 @@ function StatusBar({ companies, activeEvent, processing }) {
   return (
     <div style={{
       height: 32, background: "rgba(15,23,42,0.95)", borderTop: "1px solid rgba(59,130,246,0.2)",
-      display: "flex", alignItems: "center", padding: "0 16px", gap: 24,
+      display: "flex", alignItems: "center", padding: isMobile ? "0 10px" : "0 16px", gap: isMobile ? 10 : 24,
       fontFamily: "JetBrains Mono, monospace", fontSize: 9, color: "#475569",
+      flexShrink: 0, overflow: "hidden", whiteSpace: "nowrap",
     }}>
       <span style={{ color: "#22C55E" }}>● LIVE</span>
-      <span>S&P 500: {companies.length} TRACKED</span>
+      {!isMobile && <span>S&P 500: {companies.length} TRACKED</span>}
       {activeEvent && (
         <>
-          <span style={{ color: "#EF4444" }}>ACTIVE EVENT: {activeEvent.title}</span>
+          {!isMobile && <span style={{ color: "#EF4444" }}>ACTIVE EVENT: {activeEvent.title}</span>}
           <span style={{ color: "#F97316" }}>{exposed} EXPOSED</span>
           <span style={{ color: "#EF4444" }}>{critical} CRITICAL</span>
         </>
       )}
-      {processing && <span style={{ color: "#3B82F6" }}>AGENT PROCESSING...</span>}
+      {processing && <span style={{ color: "#3B82F6" }}>PROCESSING...</span>}
       <div style={{ flex: 1 }} />
-      <span>SURREALDB ● CONNECTED</span>
-      <span>LANGGRAPH ● READY</span>
+      {!isMobile && <span>SURREALDB ● CONNECTED</span>}
+      {!isMobile && <span>LANGGRAPH ● READY</span>}
       <span style={{ color: "#F8FAFC" }}>{clock.toUTCString().slice(17, 25)} UTC</span>
     </div>
   );
@@ -364,6 +365,14 @@ export default function RiskTerrain() {
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [processing, setProcessing] = useState(false);
   const globeRef = useRef(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [panelOpen, setPanelOpen] = useState(false);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   // Auto-trigger the Taiwan earthquake 1.5s after mount
   useEffect(() => {
@@ -449,32 +458,38 @@ export default function RiskTerrain() {
         <div style={{
           height: 52, background: "rgba(8,13,26,0.98)",
           borderBottom: "1px solid rgba(59,130,246,0.2)",
-          display: "flex", alignItems: "center", padding: "0 20px",
+          display: "flex", alignItems: "center", padding: isMobile ? "0 12px" : "0 20px",
           zIndex: 10, flexShrink: 0,
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12 }}>
             <div style={{ position: "relative" }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "#F8FAFC",
+              <div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 800, color: "#F8FAFC",
                 fontFamily: "Syne, sans-serif", letterSpacing: -0.5 }}>
                 RISK<span style={{ color: "#3B82F6" }}>TERRAIN</span>
               </div>
-              <div style={{ fontSize: 7, color: "#334155", letterSpacing: 3,
-                fontFamily: "JetBrains Mono, monospace", marginTop: -1 }}>
-                S&P 500 INTELLIGENCE PLATFORM
-              </div>
+              {!isMobile && (
+                <div style={{ fontSize: 7, color: "#334155", letterSpacing: 3,
+                  fontFamily: "JetBrains Mono, monospace", marginTop: -1 }}>
+                  S&P 500 INTELLIGENCE PLATFORM
+                </div>
+              )}
             </div>
-            <div style={{ width: 1, height: 30, background: "rgba(59,130,246,0.2)", margin: "0 4px" }} />
-            <div style={{ fontSize: 8, color: "#1D4ED8", fontFamily: "JetBrains Mono, monospace",
-              background: "rgba(29,78,216,0.1)", border: "1px solid rgba(29,78,216,0.3)",
-              padding: "2px 8px", borderRadius: 3, letterSpacing: 1 }}>
-              LANGCHAIN × SURREALDB
-            </div>
+            {!isMobile && (
+              <>
+                <div style={{ width: 1, height: 30, background: "rgba(59,130,246,0.2)", margin: "0 4px" }} />
+                <div style={{ fontSize: 8, color: "#1D4ED8", fontFamily: "JetBrains Mono, monospace",
+                  background: "rgba(29,78,216,0.1)", border: "1px solid rgba(29,78,216,0.3)",
+                  padding: "2px 8px", borderRadius: 3, letterSpacing: 1 }}>
+                  LANGCHAIN × SURREALDB
+                </div>
+              </>
+            )}
           </div>
 
           <div style={{ flex: 1 }} />
 
-          <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
-            {[
+          <div style={{ display: "flex", gap: isMobile ? 10 : 20, alignItems: "center" }}>
+            {!isMobile && [
               { label: "COMPANIES", value: SP500_SAMPLE.length, color: "#3B82F6" },
               { label: "EVENTS", value: events.length, color: "#F97316" },
               { label: "CRITICAL", value: activeEvent ? Object.values(activeEvent.risks).filter(r => r.score >= 0.8).length : 0, color: "#EF4444" },
@@ -486,13 +501,13 @@ export default function RiskTerrain() {
                   letterSpacing: 1 }}>{label}</div>
               </div>
             ))}
-            <div style={{ width: 1, height: 30, background: "rgba(59,130,246,0.2)" }} />
+            {!isMobile && <div style={{ width: 1, height: 30, background: "rgba(59,130,246,0.2)" }} />}
             <div style={{ display: "flex", gap: 8 }}>
               {[
                 { id: "feed", label: "EVENTS" },
                 { id: "report", label: "ANALYSIS" },
               ].map(tab => (
-                <button key={tab.id} onClick={() => setView(tab.id)}
+                <button key={tab.id} onClick={() => { setView(tab.id); if (isMobile) setPanelOpen(true); }}
                   style={{
                     background: view === tab.id ? "rgba(29,78,216,0.2)" : "none",
                     border: `1px solid ${view === tab.id ? "rgba(59,130,246,0.5)" : "rgba(59,130,246,0.1)"}`,
@@ -505,11 +520,20 @@ export default function RiskTerrain() {
                 </button>
               ))}
             </div>
+            {isMobile && (
+              <button onClick={() => setPanelOpen(!panelOpen)} style={{
+                background: panelOpen ? "rgba(29,78,216,0.2)" : "none",
+                border: "1px solid rgba(59,130,246,0.3)",
+                color: "#93C5FD", borderRadius: 4, cursor: "pointer",
+                width: 32, height: 32, fontSize: 14,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>{panelOpen ? "×" : "☰"}</button>
+            )}
           </div>
         </div>
 
         {/* Main Content */}
-        <div style={{ flex: 1, display: "flex", overflow: "hidden", zIndex: 2 }}>
+        <div style={{ flex: 1, display: "flex", overflow: "hidden", zIndex: 2, position: "relative" }}>
 
           {/* 3D Globe */}
           <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
@@ -520,38 +544,40 @@ export default function RiskTerrain() {
               enableAutoRotate={true}
               onGlobeReady={(globe) => {
                 globeRef.current = globe;
-                globe.pointOfView({ lat: 38, lng: -95, altitude: 1.6 }, 0);
+                globe.pointOfView({ lat: 38, lng: -95, altitude: isMobile ? 2.2 : 1.6 }, 0);
                 const controls = globe.controls();
                 controls.autoRotateSpeed = 0.2;
               }}
             />
 
             {/* Legend */}
-            <div style={{
-              position: "absolute", bottom: 16, left: 16,
-              background: "rgba(8,13,26,0.9)", border: "1px solid rgba(59,130,246,0.2)",
-              borderRadius: 6, padding: "10px 14px", backdropFilter: "blur(8px)",
-            }}>
-              <div style={{ color: "#475569", fontSize: 8, fontFamily: "JetBrains Mono, monospace",
-                letterSpacing: 2, marginBottom: 8 }}>RISK LEVEL</div>
-              {[
-                ["CRITICAL", "#EF4444", ">= 80%"],
-                ["HIGH",     "#F97316", "60-79%"],
-                ["MEDIUM",   "#EAB308", "40-59%"],
-                ["LOW",      "#22C55E", "20-39%"],
-                ["NONE",     "#3B82F6", "< 20%"],
-              ].map(([label, color, range]) => (
-                <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: color,
-                    boxShadow: `0 0 6px ${color}` }} />
-                  <span style={{ color, fontSize: 8, fontFamily: "JetBrains Mono, monospace",
-                    minWidth: 52 }}>{label}</span>
-                  <span style={{ color: "#334155", fontSize: 8, fontFamily: "JetBrains Mono, monospace" }}>
-                    {range}
-                  </span>
-                </div>
-              ))}
-            </div>
+            {!isMobile && (
+              <div style={{
+                position: "absolute", bottom: 16, left: 16,
+                background: "rgba(8,13,26,0.9)", border: "1px solid rgba(59,130,246,0.2)",
+                borderRadius: 6, padding: "10px 14px", backdropFilter: "blur(8px)",
+              }}>
+                <div style={{ color: "#475569", fontSize: 8, fontFamily: "JetBrains Mono, monospace",
+                  letterSpacing: 2, marginBottom: 8 }}>RISK LEVEL</div>
+                {[
+                  ["CRITICAL", "#EF4444", ">= 80%"],
+                  ["HIGH",     "#F97316", "60-79%"],
+                  ["MEDIUM",   "#EAB308", "40-59%"],
+                  ["LOW",      "#22C55E", "20-39%"],
+                  ["NONE",     "#3B82F6", "< 20%"],
+                ].map(([label, color, range]) => (
+                  <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: color,
+                      boxShadow: `0 0 6px ${color}` }} />
+                    <span style={{ color, fontSize: 8, fontFamily: "JetBrains Mono, monospace",
+                      minWidth: 52 }}>{label}</span>
+                    <span style={{ color: "#334155", fontSize: 8, fontFamily: "JetBrains Mono, monospace" }}>
+                      {range}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Processing overlay */}
             {processing && (
@@ -561,18 +587,18 @@ export default function RiskTerrain() {
                 alignItems: "center", justifyContent: "center",
                 backdropFilter: "blur(2px)",
               }}>
-                <div style={{ textAlign: "center" }}>
+                <div style={{ textAlign: "center", padding: isMobile ? "0 20px" : 0 }}>
                   <div style={{ width: 12, height: 12, borderRadius: "50%", background: "#3B82F6",
                     margin: "0 auto 16px", boxShadow: "0 0 20px rgba(59,130,246,0.6)",
                     animation: "pulse 0.8s infinite" }} />
-                  <div style={{ color: "#3B82F6", fontSize: 13, fontFamily: "JetBrains Mono, monospace",
+                  <div style={{ color: "#3B82F6", fontSize: isMobile ? 11 : 13, fontFamily: "JetBrains Mono, monospace",
                     fontWeight: 700, letterSpacing: 2 }}>AGENT PROCESSING</div>
                   <div style={{ color: "#334155", fontSize: 9, fontFamily: "JetBrains Mono, monospace",
                     marginTop: 6 }}>TRAVERSING S&P 500 KNOWLEDGE GRAPH</div>
-                  <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 14 }}>
+                  <div style={{ display: "flex", gap: isMobile ? 4 : 6, justifyContent: "center", marginTop: 14, flexWrap: "wrap" }}>
                     {["INGEST","GEO_RESOLVE","GRAPH_TRAVERSE","SCORE","REPORT"].map((n, i) => (
                       <div key={n} style={{
-                        color: "#1D4ED8", fontSize: 8, fontFamily: "JetBrains Mono, monospace",
+                        color: "#1D4ED8", fontSize: isMobile ? 7 : 8, fontFamily: "JetBrains Mono, monospace",
                         background: "rgba(29,78,216,0.1)", border: "1px solid rgba(29,78,216,0.3)",
                         padding: "3px 7px", borderRadius: 3,
                         animation: `pulse 0.8s ease ${i * 0.15}s infinite`,
@@ -586,9 +612,9 @@ export default function RiskTerrain() {
             {/* Selected company detail */}
             {selectedCompany && (
               <div style={{
-                position: "absolute", top: 16, left: 16,
+                position: "absolute", top: 16, left: isMobile ? 12 : 16, right: isMobile ? 12 : "auto",
                 background: "rgba(8,13,26,0.95)", border: "1px solid rgba(59,130,246,0.4)",
-                borderRadius: 8, padding: "12px 16px", maxWidth: 280,
+                borderRadius: 8, padding: "12px 16px", maxWidth: isMobile ? "none" : 280,
                 backdropFilter: "blur(12px)",
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -617,30 +643,69 @@ export default function RiskTerrain() {
                 )}
               </div>
             )}
-          </div>
 
-          {/* Side Panel */}
-          <div style={{
-            width: 340, background: "rgba(8,13,26,0.95)",
-            borderLeft: "1px solid rgba(59,130,246,0.15)",
-            display: "flex", flexDirection: "column", overflow: "hidden",
-            flexShrink: 0,
-          }}>
-            {view === "feed" || !activeEvent ? (
-              <EventFeed
-                events={events}
-                activeEvent={activeEvent}
-                onEventSelect={handleEventSelect}
-                onTrigger={handleTrigger}
-                processing={processing}
-              />
-            ) : (
-              <RiskPanel
-                event={activeEvent}
-                onClose={() => setView("feed")}
-              />
+            {/* Mobile: floating panel toggle */}
+            {isMobile && !panelOpen && (
+              <button onClick={() => setPanelOpen(true)} style={{
+                position: "absolute", bottom: 16, right: 16,
+                background: "rgba(29,78,216,0.9)", border: "1px solid rgba(59,130,246,0.5)",
+                color: "#F8FAFC", borderRadius: 24, cursor: "pointer",
+                padding: "10px 18px", fontSize: 9, fontFamily: "JetBrains Mono, monospace",
+                fontWeight: 700, letterSpacing: 1,
+                boxShadow: "0 4px 20px rgba(29,78,216,0.4)",
+              }}>
+                {events.length} EVENTS · VIEW PANEL
+              </button>
             )}
           </div>
+
+          {/* Side Panel — desktop: always visible; mobile: slide-over overlay */}
+          {(!isMobile || panelOpen) && (
+            <div style={{
+              width: isMobile ? "100%" : 340,
+              background: "rgba(8,13,26,0.98)",
+              borderLeft: isMobile ? "none" : "1px solid rgba(59,130,246,0.15)",
+              display: "flex", flexDirection: "column", overflow: "hidden",
+              flexShrink: 0,
+              ...(isMobile ? {
+                position: "absolute", top: 0, right: 0, bottom: 0,
+                zIndex: 20, maxWidth: 360,
+                boxShadow: "-4px 0 30px rgba(0,0,0,0.6)",
+              } : {}),
+            }}>
+              {isMobile && (
+                <div style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                  padding: "10px 16px", borderBottom: "1px solid rgba(59,130,246,0.15)",
+                }}>
+                  <span style={{ color: "#93C5FD", fontSize: 10, fontFamily: "JetBrains Mono, monospace",
+                    letterSpacing: 1 }}>
+                    {view === "feed" ? "EVENT FEED" : "RISK ANALYSIS"}
+                  </span>
+                  <button onClick={() => setPanelOpen(false)} style={{
+                    background: "none", border: "1px solid rgba(100,116,139,0.3)",
+                    color: "#64748B", cursor: "pointer", borderRadius: 4,
+                    width: 28, height: 28, fontSize: 14, display: "flex",
+                    alignItems: "center", justifyContent: "center",
+                  }}>×</button>
+                </div>
+              )}
+              {view === "feed" || !activeEvent ? (
+                <EventFeed
+                  events={events}
+                  activeEvent={activeEvent}
+                  onEventSelect={(event) => { handleEventSelect(event); if (isMobile) setPanelOpen(false); }}
+                  onTrigger={(idx) => { handleTrigger(idx); if (isMobile) setPanelOpen(false); }}
+                  processing={processing}
+                />
+              ) : (
+                <RiskPanel
+                  event={activeEvent}
+                  onClose={() => setView("feed")}
+                />
+              )}
+            </div>
+          )}
         </div>
 
         {/* Status Bar */}
@@ -648,6 +713,7 @@ export default function RiskTerrain() {
           companies={SP500_SAMPLE}
           activeEvent={activeEvent}
           processing={processing}
+          isMobile={isMobile}
         />
       </div>
     </>

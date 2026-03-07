@@ -193,13 +193,13 @@ export default function Landing() {
         {/* Header */}
         <header style={{
           position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
-          height: 60, display: 'flex', alignItems: 'center', padding: '0 32px',
+          height: 60, display: 'flex', alignItems: 'center', padding: '0 clamp(16px, 4vw, 32px)',
           background: 'rgba(8,13,26,0.6)',
           backdropFilter: 'blur(12px)',
           borderBottom: `1px solid ${T.border}`,
         }}>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: T.text0, letterSpacing: -0.5, fontFamily: T.syne }}>
+            <div style={{ fontSize: 'clamp(16px, 3vw, 20px)', fontWeight: 800, color: T.text0, letterSpacing: -0.5, fontFamily: T.syne }}>
               RISK<span style={{ color: T.blue }}>TERRAIN</span>
             </div>
             <div style={{
@@ -213,7 +213,7 @@ export default function Landing() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {['SURREALDB', 'LANGGRAPH'].map(badge => (
               <span key={badge} style={{
-                fontSize: 8, fontFamily: T.mono, letterSpacing: 1,
+                fontSize: 'clamp(6px, 1.2vw, 8px)', fontFamily: T.mono, letterSpacing: 1,
                 color: T.deepBlue,
                 background: 'rgba(29,78,216,0.1)',
                 border: '1px solid rgba(29,78,216,0.3)',
@@ -275,7 +275,7 @@ export default function Landing() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1.0, duration: 0.6 }}
-            style={{ display: 'flex', gap: 40, justifyContent: 'center', marginBottom: 48 }}
+            style={{ display: 'flex', gap: 'clamp(20px, 5vw, 40px)', justifyContent: 'center', marginBottom: 48, flexWrap: 'wrap' }}
           >
             {[
               { value: <AnimatedCounter target={SP500_SAMPLE.length} />, label: 'COMPANIES TRACKED', color: T.blue },
@@ -372,7 +372,7 @@ export default function Landing() {
 
       {/* ═══ HOW IT WORKS ═══ */}
       <section style={{
-        padding: '120px 48px', background: 'rgba(10,15,30,0.85)',
+        padding: 'clamp(60px, 10vw, 120px) clamp(16px, 4vw, 48px)', background: 'rgba(10,15,30,0.85)',
         position: 'relative', zIndex: 2,
         backdropFilter: 'blur(6px)',
       }}>
@@ -394,7 +394,7 @@ export default function Landing() {
 
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))',
           gap: 28, maxWidth: 1200, margin: '0 auto',
         }}>
           {[
@@ -521,7 +521,7 @@ export default function Landing() {
 
       {/* ═══ AGENT PIPELINE ═══ */}
       <section style={{
-        padding: '100px 48px', background: 'rgba(8,13,26,0.85)',
+        padding: 'clamp(60px, 8vw, 100px) clamp(16px, 4vw, 48px)', background: 'rgba(8,13,26,0.85)',
         position: 'relative', zIndex: 2,
         borderTop: `1px solid ${T.border}`,
         backdropFilter: 'blur(6px)',
@@ -552,7 +552,7 @@ export default function Landing() {
           transition={{ duration: 0.8 }}
           style={{
             maxWidth: 900, margin: '0 auto',
-            display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8,
+            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: 8,
           }}
         >
           {[
@@ -576,7 +576,6 @@ export default function Landing() {
                 border: '1px solid rgba(29,78,216,0.25)',
                 borderRadius: 4, padding: '12px 16px',
                 display: 'flex', alignItems: 'center', gap: 12,
-                minWidth: 220,
               }}
             >
               <span style={{
@@ -600,7 +599,7 @@ export default function Landing() {
 
       {/* ═══ TECH STACK + FOOTER ═══ */}
       <section style={{
-        padding: '100px 48px 60px', background: 'rgba(10,15,30,0.85)',
+        padding: 'clamp(60px, 8vw, 100px) clamp(16px, 4vw, 48px) 60px', background: 'rgba(10,15,30,0.85)',
         textAlign: 'center', position: 'relative', zIndex: 2,
         borderTop: `1px solid ${T.border}`,
         backdropFilter: 'blur(6px)',
@@ -633,7 +632,7 @@ export default function Landing() {
                 background: T.card, border: `1px solid ${color}30`,
                 borderRadius: 6, padding: '16px 22px',
                 backdropFilter: 'blur(8px)', textAlign: 'left',
-                minWidth: 170, transition: 'border-color 0.2s',
+                minWidth: 'min(170px, 100%)', flex: '1 1 150px', transition: 'border-color 0.2s',
               }}
             >
               <div style={{
