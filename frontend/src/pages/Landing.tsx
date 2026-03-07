@@ -50,14 +50,15 @@ function useScrollGlobe(globeRef: React.MutableRefObject<GlobeMethods | null>) {
     if (!globe) return
 
     const vh = window.innerHeight
-    const progress = Math.min(scrollY / (vh * 1.5), 1)
+    const totalHeight = document.documentElement.scrollHeight - vh
+    const progress = totalHeight > 0 ? Math.min(scrollY / totalHeight, 1) : 0
 
-    // Zoom out as user scrolls (altitude 2.5 → 4.5)
-    const altitude = 2.5 + progress * 2.0
-    // Tilt the view (lat sweeps 20 → 50)
-    const lat = 20 + progress * 30
-    // Rotate longitude
-    const lng = -40 + progress * 80
+    // Zoom out as user scrolls through entire page (altitude 2.5 → 5.0)
+    const altitude = 2.5 + progress * 2.5
+    // Tilt the view (lat sweeps 20 → 55)
+    const lat = 20 + progress * 35
+    // Rotate longitude across full page
+    const lng = -40 + progress * 120
 
     globe.pointOfView({ lat, lng, altitude }, 0)
   }, [scrollY, globeRef])
@@ -87,9 +88,9 @@ export default function Landing() {
     setTimeout(() => navigate('/dashboard'), 900)
   }, [navigate])
 
-  // Globe fades out as user scrolls past hero
+  // Globe stays visible but dims slightly as user scrolls
   const vh = typeof window !== 'undefined' ? window.innerHeight : 900
-  const globeOpacity = Math.max(0, 1 - scrollY / (vh * 0.8))
+  const globeOpacity = Math.max(0.25, 1 - scrollY / (vh * 2.5))
 
   return (
     <motion.div
@@ -283,8 +284,9 @@ export default function Landing() {
 
       {/* ═══ HOW IT WORKS ═══ */}
       <section style={{
-        padding: '120px 48px', background: T.bg1,
+        padding: '120px 48px', background: 'rgba(10,15,30,0.85)',
         position: 'relative', zIndex: 2,
+        backdropFilter: 'blur(6px)',
       }}>
         <div style={{ textAlign: 'center', marginBottom: 72 }}>
           <div style={{
@@ -431,9 +433,10 @@ export default function Landing() {
 
       {/* ═══ AGENT PIPELINE ═══ */}
       <section style={{
-        padding: '100px 48px', background: T.bg0,
+        padding: '100px 48px', background: 'rgba(8,13,26,0.85)',
         position: 'relative', zIndex: 2,
         borderTop: `1px solid ${T.border}`,
+        backdropFilter: 'blur(6px)',
       }}>
         <div style={{ textAlign: 'center', marginBottom: 56 }}>
           <div style={{
@@ -509,9 +512,10 @@ export default function Landing() {
 
       {/* ═══ TECH STACK + FOOTER ═══ */}
       <section style={{
-        padding: '100px 48px 60px', background: T.bg1,
+        padding: '100px 48px 60px', background: 'rgba(10,15,30,0.85)',
         textAlign: 'center', position: 'relative', zIndex: 2,
         borderTop: `1px solid ${T.border}`,
+        backdropFilter: 'blur(6px)',
       }}>
         <div style={{
           fontSize: 8, fontFamily: T.mono, letterSpacing: 4,
