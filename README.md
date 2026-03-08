@@ -11,7 +11,7 @@
 ## Demo Video
 
 <!-- REPLACE_VIDEO_URL: Drag hackathon.mp4 into a GitHub Issue comment, copy the generated URL, and paste it below -->
-https://github.com/user-attachments/assets/hackathon.mp4
+https://github.com/daththeanalyst/Risk-Terrain-Hackathon-SurrealDB-Langchain/assets/hackathon.mp4
 
 > 2-minute project overview demonstrating the full pipeline: live event detection, SurrealDB graph traversal, AI risk scoring, and 3D globe visualization.
 
