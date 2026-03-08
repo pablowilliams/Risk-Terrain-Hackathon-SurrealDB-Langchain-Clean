@@ -13,6 +13,7 @@ langgraph>=0.2.0,<1.0
 langchain-anthropic>=0.2.0,<1.0
 langchain-core>=0.3.0,<1.0
 langchain-community>=0.3.0,<1.0
+langsmith>=0.1.0,<1.0               # Observability (Criterion ⑤)
 
 # Embeddings — Fix #77: sentence-transformers is heavy (pulls PyTorch ~2GB)
 # Option A: Full embeddings (better quality, larger image)
@@ -23,6 +24,12 @@ torch
 
 # Claude API
 anthropic>=0.39.0,<1.0  # Fix #78
+
+# Google Gemini (cheap/fast classification)
+google-genai>=1.0.0,<2.0
+
+# Live market data
+yfinance>=0.2.0,<1.0
 
 # HTTP + Config
 python-dotenv>=1.0.1,<2.0

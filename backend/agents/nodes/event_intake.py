@@ -6,7 +6,7 @@ Node 1: event_intake -- Fix #9 #28 #57 #58 #60
 import json
 import logging
 from agents.state import RiskState
-from utils import call_claude, parse_claude_json
+from utils import call_gemini, parse_claude_json
 
 logger = logging.getLogger("riskterrain.node.event_intake")
 
@@ -48,7 +48,12 @@ def _try_parse_usgs(raw: str) -> dict | None:
         else:
             sev, impact = 2, "minor local effects"
         usgs_url = props.get("url", "")
-        articles = [{"title": f"M{mag:.1f} Earthquake -- {place}", "url": usgs_url, "source": "USGS"}] if usgs_url else []
+        usgs_time = props.get("time")
+        published_at = ""
+        if usgs_time:
+            from datetime import datetime, timezone
+            published_at = datetime.fromtimestamp(usgs_time / 1000, tz=timezone.utc).isoformat()
+        articles = [{"title": f"M{mag:.1f} Earthquake -- {place}", "url": usgs_url, "source": "USGS", "published_at": published_at}] if usgs_url else []
         return {
             "event_type": "natural_disaster",
             "title": f"M{mag:.1f} Earthquake -- {place}",
@@ -72,8 +77,8 @@ def event_intake(state: RiskState) -> dict:
         logger.info(f"USGS parsed: {usgs['title']}")
         return {**usgs, "source": "USGS"}
 
-    # Fix #60: uses shared retry-enabled call_claude
-    raw_text = call_claude(
+    # Uses Gemini Flash for cheap/fast classification
+    raw_text = call_gemini(
         system=CLASSIFICATION_PROMPT,
         user_content=f"Classify this event:\n\n{raw[:1500]}",  # Fix #88: truncate
         max_tokens=500,

@@ -10,8 +10,22 @@ interface GlobePoint {
   lng: number
   color: string
   size: number
-  label: string
   ticker: string
+  name: string
+  sector: string
+  mc: number
+  riskScore: number
+  riskReasoning: string
+  isHighlighted: boolean
+  inWatchlist: boolean
+}
+
+interface HtmlLabel {
+  lat: number
+  lng: number
+  ticker: string
+  color: string
+  riskScore: number
 }
 
 interface GlobeRing {
@@ -20,6 +34,7 @@ interface GlobeRing {
   maxR: number
   propagationSpeed: number
   repeatPeriod: number
+  color: string
 }
 
 interface GlobeArc {
@@ -55,6 +70,7 @@ interface Globe3DProps {
   onCompanyClick?: (company: Company) => void
   enableAutoRotate?: boolean
   onGlobeReady?: (globe: GlobeMethods) => void
+  minimal?: boolean
 }
 
 export default function Globe3D({
@@ -68,6 +84,7 @@ export default function Globe3D({
   onCompanyClick,
   enableAutoRotate = true,
   onGlobeReady,
+  minimal = false,
 }: Globe3DProps) {
   const globeRef = useRef<GlobeMethods | undefined>(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -88,32 +105,73 @@ export default function Globe3D({
   const points: GlobePoint[] = useMemo(() =>
     companies.map(c => {
       const riskScore = activeEvent?.risks[c.ticker]?.score ?? 0
+      const riskReasoning = activeEvent?.risks[c.ticker]?.reasoning ?? ''
       const isHighlighted = highlightTicker === c.ticker
       const inWatchlist = !watchlistTickers || watchlistTickers.size === 0 || watchlistTickers.has(c.ticker)
       return {
         lat: c.lat,
         lng: c.lng,
         color: !inWatchlist ? '#1E293B' : isHighlighted ? '#F8FAFC' : riskColor(riskScore),
-        size: !inWatchlist ? 0.05 : isHighlighted ? 0.6 : (riskScore > 0 ? 0.2 + riskScore * 0.5 : 0.12),
-        label: c.ticker,
+        size: !inWatchlist ? 0.05 : isHighlighted ? 0.6 : (riskScore > 0 ? 0.2 + riskScore * 0.5 : 0.15),
         ticker: c.ticker,
+        name: c.name,
+        sector: c.sector,
+        mc: c.mc,
+        riskScore,
+        riskReasoning,
+        isHighlighted,
+        inWatchlist,
       }
     }),
     [companies, activeEvent, highlightTicker, watchlistTickers]
   )
 
-  const rings: GlobeRing[] = useMemo(() =>
-    activeEvent
-      ? [{
-          lat: activeEvent.lat,
-          lng: activeEvent.lng,
-          maxR: 8,
-          propagationSpeed: 2,
-          repeatPeriod: 900,
-        }]
-      : [],
-    [activeEvent]
-  )
+  // Persistent HTML labels for at-risk / highlighted companies (hidden in minimal mode)
+  const htmlLabels: HtmlLabel[] = useMemo(() => {
+    if (minimal) return []
+    return points
+      .filter(p => p.inWatchlist && (p.riskScore > 0 || p.isHighlighted))
+      .map(p => ({
+        lat: p.lat,
+        lng: p.lng,
+        ticker: p.ticker,
+        color: p.color,
+        riskScore: p.riskScore,
+      }))
+  }, [points, minimal])
+
+  // Rings: event epicenter + pulsing rings around at-risk companies
+  const rings: GlobeRing[] = useMemo(() => {
+    const result: GlobeRing[] = []
+    if (activeEvent) {
+      // Main event epicenter ring
+      result.push({
+        lat: activeEvent.lat,
+        lng: activeEvent.lng,
+        maxR: 8,
+        propagationSpeed: 2,
+        repeatPeriod: 900,
+        color: '#EF4444',
+      })
+      // Subtle pulse rings around at-risk companies
+      for (const [ticker, risk] of Object.entries(activeEvent.risks)) {
+        if (risk.score < 0.4) continue
+        if (watchlistTickers && watchlistTickers.size > 0 && !watchlistTickers.has(ticker)) continue
+        const company = companies.find(c => c.ticker === ticker)
+        if (company) {
+          result.push({
+            lat: company.lat,
+            lng: company.lng,
+            maxR: 1 + risk.score * 1.5,
+            propagationSpeed: 0.6 + risk.score * 0.8,
+            repeatPeriod: 1400,
+            color: riskColor(risk.score),
+          })
+        }
+      }
+    }
+    return result
+  }, [activeEvent, companies, watchlistTickers])
 
   // Event-to-company arcs
   const eventArcs: GlobeArc[] = useMemo(() => {
@@ -230,19 +288,95 @@ export default function Globe3D({
           pointRadius="size"
           pointLabel={(p: object) => {
             const pt = p as GlobePoint
+            if (!pt.inWatchlist) return ''
+            if (minimal) {
+              return `<div style="
+                background:rgba(8,13,26,0.95);
+                border:1px solid rgba(59,130,246,0.5);
+                border-radius:6px;
+                padding:6px 10px;
+                font-family:'JetBrains Mono',monospace;
+                font-size:11px;
+                font-weight:700;
+                color:#F8FAFC;
+                backdrop-filter:blur(8px);
+              ">${pt.ticker}</div>`
+            }
+            const borderColor = pt.riskScore > 0 ? pt.color : 'rgba(59,130,246,0.5)'
+            const riskPct = Math.round(pt.riskScore * 100)
+            const riskLevel = pt.riskScore >= 0.8 ? 'CRITICAL'
+              : pt.riskScore >= 0.6 ? 'HIGH'
+              : pt.riskScore >= 0.4 ? 'MEDIUM'
+              : pt.riskScore >= 0.2 ? 'LOW' : ''
+
+            let riskHTML = ''
+            if (pt.riskScore > 0) {
+              const reason = pt.riskReasoning
+                ? `<div style="color:#64748B;font-size:9px;line-height:1.5;max-width:200px;margin-top:4px;">${pt.riskReasoning.slice(0, 120)}${pt.riskReasoning.length > 120 ? '...' : ''}</div>`
+                : ''
+              riskHTML = `
+                <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(59,130,246,0.15);">
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    <div style="width:7px;height:7px;border-radius:50%;background:${pt.color};box-shadow:0 0 8px ${pt.color}80;flex-shrink:0;"></div>
+                    <span style="color:${pt.color};font-size:11px;font-weight:800;letter-spacing:1px;">${riskPct}% ${riskLevel}</span>
+                  </div>
+                  ${reason}
+                </div>`
+            }
+
+            const mcStr = pt.mc >= 1000 ? `$${(pt.mc / 1000).toFixed(1)}T` : `$${pt.mc}B`
+
             return `<div style="
-              background: rgba(8,13,26,0.95);
-              border: 1px solid rgba(59,130,246,0.5);
-              border-radius: 6px;
-              padding: 6px 10px;
-              font-family: 'JetBrains Mono', monospace;
-              font-size: 11px;
-              font-weight: 700;
-              color: #F8FAFC;
-              backdrop-filter: blur(8px);
-            ">${pt.ticker}</div>`
+              background:rgba(8,13,26,0.97);
+              border:1px solid ${borderColor};
+              border-radius:8px;
+              padding:12px 16px;
+              font-family:'JetBrains Mono',monospace;
+              backdrop-filter:blur(12px);
+              min-width:170px;
+              max-width:250px;
+              box-shadow:0 8px 32px rgba(0,0,0,0.6),0 0 20px ${borderColor}20;
+            ">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+                <span style="color:${pt.color};font-size:14px;font-weight:800;letter-spacing:1px;">${pt.ticker}</span>
+                <span style="color:#334155;font-size:8px;letter-spacing:1px;margin-left:auto;">${pt.sector}</span>
+              </div>
+              <div style="color:#94A3B8;font-size:10px;margin-bottom:3px;">${pt.name}</div>
+              <div style="color:#475569;font-size:9px;">MCap ${mcStr}</div>
+              ${riskHTML}
+            </div>`
           }}
           onPointClick={handlePointClick}
+          htmlElementsData={htmlLabels}
+          htmlLat="lat"
+          htmlLng="lng"
+          htmlAltitude={0.025}
+          htmlElement={(d: object) => {
+            const label = d as HtmlLabel
+            const el = document.createElement('div')
+            const pct = Math.round(label.riskScore * 100)
+            el.style.cssText = `
+              font-family:'JetBrains Mono',monospace;
+              font-size:${label.riskScore > 0 ? 9 : 8}px;
+              font-weight:700;
+              color:${label.color};
+              background:rgba(8,13,26,0.88);
+              border:1px solid ${label.color}50;
+              border-radius:4px;
+              padding:2px 6px;
+              pointer-events:none;
+              white-space:nowrap;
+              text-shadow:0 0 8px ${label.color}60;
+              transform:translate(-50%,-140%);
+              letter-spacing:0.5px;
+            `
+            if (label.riskScore > 0) {
+              el.innerHTML = `${label.ticker} <span style="font-size:7px;opacity:0.7">${pct}%</span>`
+            } else {
+              el.textContent = label.ticker
+            }
+            return el
+          }}
           arcsData={allArcs}
           arcStartLat="startLat"
           arcStartLng="startLng"
@@ -298,7 +432,14 @@ export default function Globe3D({
           ringMaxRadius="maxR"
           ringPropagationSpeed="propagationSpeed"
           ringRepeatPeriod="repeatPeriod"
-          ringColor={() => (t: number) => `rgba(239,68,68,${1 - t})`}
+          ringColor={(d: object) => {
+            const ring = d as GlobeRing
+            const hex = ring.color
+            const r = parseInt(hex.slice(1, 3), 16)
+            const g = parseInt(hex.slice(3, 5), 16)
+            const b = parseInt(hex.slice(5, 7), 16)
+            return (t: number) => `rgba(${r},${g},${b},${1 - t})`
+          }}
           ringAltitude={0.002}
         />
       )}

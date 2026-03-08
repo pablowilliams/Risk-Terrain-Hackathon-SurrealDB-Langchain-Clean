@@ -24,6 +24,9 @@ logger = logging.getLogger("riskterrain")
 from routes.companies import router as companies_router
 from routes.events import router as events_router
 from routes.supply_chain import router as supply_chain_router
+from routes.portfolio import router as portfolio_router
+from routes.news import router as news_router
+from routes.market import router as market_router
 
 
 # Fix #15: use lifespan instead of deprecated on_event
@@ -229,6 +232,9 @@ def health_compat():
 app.include_router(companies_router)
 app.include_router(events_router)
 app.include_router(supply_chain_router)
+app.include_router(portfolio_router)
+app.include_router(news_router)
+app.include_router(market_router)
 
 # Backward compat: also mount at /api/ (unversioned)
 from fastapi import APIRouter

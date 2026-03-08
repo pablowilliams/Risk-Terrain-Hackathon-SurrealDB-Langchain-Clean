@@ -26,7 +26,7 @@ export interface DemoEvent {
   lng: number
   created_at: string
   risks: Record<string, RiskEntry>
-  news_articles?: Array<{ title: string; url: string; source: string }>
+  news_articles?: Array<{ title: string; url: string; source: string; published_at?: string }>
 }
 
 // ── Mock Data ─────────────────────────────────────────────────────────────────
@@ -305,11 +305,19 @@ export interface SupplyChainEdge {
 
 export const RELATIONSHIP_COLORS: Record<string, string> = {
   chip_fab: '#06B6D4',
-  component: '#8B5CF6',
+  component: '#A78BFA',
   ai_compute: '#F59E0B',
   cloud_provider: '#10B981',
-  sector_peer: '#64748B',
+  sector_peer: '#60A5FA',
   logistics: '#EC4899',
+  semiconductor: '#22D3EE',
+  manufacturing: '#F97316',
+  raw_materials: '#A3E635',
+  software: '#818CF8',
+  licensing: '#FB923C',
+  energy: '#FACC15',
+  financial: '#34D399',
+  supplies: '#38BDF8',
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────

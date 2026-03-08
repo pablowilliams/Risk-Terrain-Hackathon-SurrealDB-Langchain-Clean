@@ -170,6 +170,7 @@ export default function Landing() {
           activeEvent={DEMO_EVENTS[0]}
           enableAutoRotate={false}
           onGlobeReady={handleGlobeReady}
+          minimal
         />
       </div>
 

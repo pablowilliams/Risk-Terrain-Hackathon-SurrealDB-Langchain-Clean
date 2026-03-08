@@ -1,10 +1,198 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Globe3D from "../Globe3D";
-import { SP500_SAMPLE as SHARED_COMPANIES, RELATIONSHIP_COLORS } from "../../data/mockData";
+import { RELATIONSHIP_COLORS } from "../../data/mockData";
 import SupplyChainPanel from "./SupplyChainPanel";
+import MarketTicker from "./widgets/MarketTicker";
+import PortfolioRisk from "./widgets/PortfolioRisk";
+import NewsFeed from "./widgets/NewsFeed";
+import LiveStreams from "./widgets/LiveStreams";
+import SectorFilter from "./widgets/SectorFilter";
+import CustomTracker from "./widgets/CustomTracker";
+import Settings from "./widgets/Settings";
 
-// Use shared company data (155 companies including international)
-const SP500_SAMPLE = SHARED_COMPANIES;
+const WIDGET_CATALOG = [
+  { id: "filter", label: "SECTOR FILTER", component: SectorFilter, statusColor: "#8B5CF6" },
+  { id: "market", label: "MARKET DATA", component: MarketTicker, statusColor: "#22C55E" },
+  { id: "portfolio", label: "PORTFOLIO RISK", component: PortfolioRisk, statusColor: "#3B82F6" },
+  { id: "news", label: "LIVE NEWS", component: NewsFeed, statusColor: "#22C55E" },
+  { id: "streams", label: "LIVE STREAMS", component: LiveStreams, statusColor: "#EF4444" },
+  { id: "tracker", label: "MY TRACKER", component: CustomTracker, statusColor: "#F59E0B" },
+  { id: "settings", label: "SETTINGS", component: Settings, statusColor: "#94A3B8" },
+];
+
+const DEFAULT_WIDGETS = {
+  filter:    { active: false, x: 12, y: 12,  w: 240, h: 360, minimized: false, zIndex: 10 },
+  market:    { active: true,  x: 12, y: 8,   w: 240, h: 190, minimized: false, zIndex: 10 },
+  portfolio: { active: true,  x: 12, y: 206, w: 240, h: 240, minimized: false, zIndex: 10 },
+  news:      { active: false, x: 260, y: 8,  w: 260, h: 260, minimized: false, zIndex: 10 },
+  streams:   { active: false, x: 260, y: 8,  w: 340, h: 280, minimized: false, zIndex: 10 },
+  tracker:   { active: false, x: 280, y: 8,  w: 280, h: 300, minimized: false, zIndex: 10 },
+  settings:  { active: false, x: 260, y: 8,  w: 210, h: 280, minimized: false, zIndex: 10 },
+};
+
+// ── Floating Widget Wrapper ──────────────────────────────────────────────────
+const SNAP_THRESHOLD = 12;
+const SNAP_MARGIN = 8;
+
+function FloatingWidget({ id, title, state, onUpdate, onClose, onBringToFront, statusColor = "#3B82F6", children }) {
+  const [focused, setFocused] = useState(false);
+  const [resizeHover, setResizeHover] = useState(false);
+
+  const handleDragStart = useCallback((e) => {
+    e.preventDefault();
+    onBringToFront();
+    const startX = e.clientX - state.x;
+    const startY = e.clientY - state.y;
+    const container = document.querySelector("[data-widget-container]");
+
+    const onMove = (ev) => {
+      let newX = Math.max(0, ev.clientX - startX);
+      let newY = Math.max(0, ev.clientY - startY);
+
+      // Snap to container edges
+      if (container) {
+        const cw = container.clientWidth;
+        const ch = container.clientHeight;
+        if (newX < SNAP_THRESHOLD) newX = SNAP_MARGIN;
+        if (newX + state.w > cw - SNAP_THRESHOLD) newX = cw - state.w - SNAP_MARGIN;
+        if (newY < SNAP_THRESHOLD) newY = SNAP_MARGIN;
+        if (newY + state.h > ch - SNAP_THRESHOLD) newY = ch - state.h - SNAP_MARGIN;
+      }
+
+      onUpdate({ x: newX, y: newY });
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [state.x, state.y, state.w, state.h, onUpdate, onBringToFront]);
+
+  const handleResizeStart = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onBringToFront();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startW = state.w;
+    const startH = state.h;
+    const onMove = (ev) => {
+      onUpdate({
+        w: Math.max(200, startW + (ev.clientX - startX)),
+        h: Math.max(80, startH + (ev.clientY - startY)),
+      });
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [state.w, state.h, onUpdate, onBringToFront]);
+
+  const isMin = state.minimized;
+
+  return (
+    <div
+      onMouseDown={onBringToFront}
+      onMouseEnter={() => setFocused(true)}
+      onMouseLeave={() => setFocused(false)}
+      style={{
+        position: "absolute", left: state.x, top: state.y,
+        width: isMin ? 160 : state.w,
+        height: isMin ? 32 : state.h,
+        zIndex: state.zIndex,
+        background: "rgba(8,13,26,0.92)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
+        border: `1px solid ${focused ? "rgba(59,130,246,0.35)" : "rgba(59,130,246,0.15)"}`,
+        borderRadius: 8,
+        overflow: "hidden",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.4), 0 0 1px rgba(59,130,246,0.2)",
+        display: "flex", flexDirection: "column",
+        transition: "height 0.2s ease, width 0.2s ease, border-color 0.15s ease",
+      }}
+    >
+      {/* Title bar — drag handle */}
+      <div
+        onMouseDown={handleDragStart}
+        style={{
+          height: 32, flexShrink: 0, display: "flex", alignItems: "center",
+          padding: "0 6px 0 10px", gap: 8, cursor: "grab",
+          background: "linear-gradient(180deg, rgba(15,23,42,0.95), rgba(10,15,30,0.95))",
+          borderBottom: isMin ? "none" : "1px solid rgba(59,130,246,0.1)",
+          userSelect: "none",
+        }}
+      >
+        {/* Status dot */}
+        <div style={{
+          width: 6, height: 6, borderRadius: "50%",
+          background: statusColor,
+          boxShadow: `0 0 6px ${statusColor}80`,
+          flexShrink: 0,
+        }} />
+        {/* Title */}
+        <span style={{
+          color: "#94A3B8", fontSize: 9, fontFamily: "JetBrains Mono, monospace",
+          letterSpacing: 1.5, fontWeight: 700, flex: 1, overflow: "hidden",
+          textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>{title}</span>
+        {/* Minimize */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onUpdate({ minimized: !isMin }); }}
+          onMouseDown={e => e.stopPropagation()}
+          style={{
+            width: 20, height: 20, borderRadius: 4,
+            background: "none", border: "none", color: "#475569", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 14, fontWeight: 800, lineHeight: 1, transition: "all 0.15s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = "rgba(59,130,246,0.15)"; e.currentTarget.style.color = "#93C5FD"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "#475569"; }}
+        >{isMin ? "+" : "\u2013"}</button>
+        {/* Close */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onClose(); }}
+          onMouseDown={e => e.stopPropagation()}
+          style={{
+            width: 20, height: 20, borderRadius: 4,
+            background: "none", border: "none", color: "#475569", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 14, fontWeight: 800, lineHeight: 1, transition: "all 0.15s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = "rgba(239,68,68,0.15)"; e.currentTarget.style.color = "#EF4444"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "#475569"; }}
+        >&times;</button>
+      </div>
+
+      {/* Content — hidden when minimized but stays mounted to preserve state */}
+      <div style={{ flex: 1, overflow: "auto", display: isMin ? "none" : "block" }}>
+        {children}
+      </div>
+
+      {/* Resize handle — 3 diagonal dots */}
+      {!isMin && (
+        <div
+          onMouseDown={handleResizeStart}
+          onMouseEnter={() => setResizeHover(true)}
+          onMouseLeave={() => setResizeHover(false)}
+          style={{
+            position: "absolute", bottom: 2, right: 2,
+            width: 14, height: 14, cursor: "nwse-resize",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          <svg width="8" height="8" viewBox="0 0 8 8">
+            <circle cx="6" cy="2" r="1" fill={resizeHover ? "rgba(59,130,246,0.5)" : "rgba(59,130,246,0.25)"} />
+            <circle cx="6" cy="6" r="1" fill={resizeHover ? "rgba(59,130,246,0.5)" : "rgba(59,130,246,0.25)"} />
+            <circle cx="2" cy="6" r="1" fill={resizeHover ? "rgba(59,130,246,0.5)" : "rgba(59,130,246,0.25)"} />
+          </svg>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 const riskColor = (score) => {
@@ -32,7 +220,7 @@ const timeAgo = (iso) => {
 };
 
 // ── Event Feed ────────────────────────────────────────────────────────────────
-function EventFeed({ events, activeEvent, onEventSelect, onTrigger, processing }) {
+function EventFeed({ events, activeEvent, onEventSelect, processing }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       <div style={{ padding: "16px 16px 10px", borderBottom: "1px solid rgba(59,130,246,0.15)" }}>
@@ -43,27 +231,6 @@ function EventFeed({ events, activeEvent, onEventSelect, onTrigger, processing }
           <span style={{ color: "#94A3B8", fontSize: 10, fontFamily: "JetBrains Mono, monospace", letterSpacing: 2 }}>
             {processing ? "PROCESSING EVENT" : "MONITOR ACTIVE"}
           </span>
-        </div>
-        <div style={{ color: "#64748B", fontSize: 9, fontFamily: "JetBrains Mono, monospace", marginBottom: 10 }}>
-          SIMULATE EVENT
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-          {[
-            { label: "M7.4 TAIWAN EARTHQUAKE", idx: 0, color: "#EF4444" },
-            { label: "US-CHINA EXPORT CONTROLS", idx: 1, color: "#F97316" },
-            { label: "FED RATE HIKE +75BPS", idx: 2, color: "#EAB308" },
-          ].map(({ label, idx, color }) => (
-            <button key={idx} onClick={() => onTrigger(idx)}
-              style={{
-                background: "rgba(15,23,42,0.8)", border: `1px solid ${color}40`,
-                color: color, borderRadius: 4, padding: "6px 10px",
-                fontSize: 10, fontFamily: "JetBrains Mono, monospace",
-                cursor: "pointer", textAlign: "left", transition: "all 0.15s",
-              }}
-              onMouseEnter={e => { e.target.style.background = `${color}15`; e.target.style.borderColor = color; }}
-              onMouseLeave={e => { e.target.style.background = "rgba(15,23,42,0.8)"; e.target.style.borderColor = `${color}40`; }}
-            >{label}</button>
-          ))}
         </div>
       </div>
 
@@ -139,6 +306,12 @@ function EventFeed({ events, activeEvent, onEventSelect, onTrigger, processing }
                         fontWeight: 700, flexShrink: 0 }}>
                         {article.source}
                       </span>
+                      {article.published_at && (
+                        <span style={{ color: "#475569", fontSize: 7, fontFamily: "JetBrains Mono, monospace",
+                          flexShrink: 0 }}>
+                          {new Date(article.published_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })}
+                        </span>
+                      )}
                       <span style={{ color: "#64748B", fontSize: 8, overflow: "hidden",
                         textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {article.title}
@@ -171,12 +344,28 @@ function RiskPanel({ event, onClose, supplyChainEdges = [], watchlistTickers = n
     .filter(([ticker]) => !watchlistActive || watchlistTickers.has(ticker))
     .sort((a, b) => b[1].score - a[1].score);
   const [animating, setAnimating] = useState(true);
+  const [marketData, setMarketData] = useState({});
 
   useEffect(() => {
     setAnimating(true);
     const t = setTimeout(() => setAnimating(false), 600);
     return () => clearTimeout(t);
   }, [event.id]);
+
+  // Fetch stock prices for flagged tickers
+  useEffect(() => {
+    const tickers = Object.keys(event.risks);
+    if (tickers.length === 0) return;
+    const query = tickers.slice(0, 30).join(",");
+    fetch(`/api/v1/market-data?tickers=${encodeURIComponent(query)}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(arr => {
+        const map = {};
+        if (Array.isArray(arr)) arr.forEach(q => { map[q.ticker] = q; });
+        setMarketData(map);
+      })
+      .catch(() => {});
+  }, [event.id, event.risks]);
 
   return (
     <div style={{
@@ -233,6 +422,12 @@ function RiskPanel({ event, onClose, supplyChainEdges = [], watchlistTickers = n
                   fontWeight: 700, minWidth: 50, flexShrink: 0 }}>
                   {article.source}
                 </span>
+                {article.published_at && (
+                  <span style={{ color: "#64748B", fontSize: 7.5, fontFamily: "JetBrains Mono, monospace",
+                    flexShrink: 0, minWidth: 60 }}>
+                    {new Date(article.published_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })}
+                  </span>
+                )}
                 <span style={{ color: "#93C5FD", fontSize: 8.5, lineHeight: 1.3,
                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {article.title}
@@ -267,6 +462,10 @@ function RiskPanel({ event, onClose, supplyChainEdges = [], watchlistTickers = n
         {sorted.map(([ticker, data], i) => {
           const color = riskColor(data.score);
           const pct = Math.round(data.score * 100);
+          const quote = marketData[ticker];
+          const priceChange = quote?.change_pct;
+          const priceUp = priceChange != null && priceChange >= 0;
+          const priceColor = priceChange == null ? "#475569" : priceUp ? "#22C55E" : "#EF4444";
           return (
             <div key={ticker} style={{
               padding: "8px 12px", marginBottom: 3, borderRadius: 5,
@@ -275,8 +474,16 @@ function RiskPanel({ event, onClose, supplyChainEdges = [], watchlistTickers = n
               animation: `slideIn 0.3s ease ${i * 0.04}s both`,
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
-                <span style={{ color: "#F8FAFC", fontSize: 11, fontWeight: 800,
-                  fontFamily: "JetBrains Mono, monospace", minWidth: 50 }}>
+                <span
+                  onClick={() => window.open(`https://finance.yahoo.com/quote/${ticker}`, "_blank")}
+                  style={{ color: "#F8FAFC", fontSize: 11, fontWeight: 800,
+                    fontFamily: "JetBrains Mono, monospace", minWidth: 50,
+                    cursor: "pointer", transition: "color 0.15s",
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.color = "#F59E0B"}
+                  onMouseLeave={e => e.currentTarget.style.color = "#F8FAFC"}
+                  title={`View ${ticker} on Yahoo Finance`}
+                >
                   {ticker}
                 </span>
                 <div style={{ flex: 1, height: 4, background: "rgba(15,23,42,0.8)",
@@ -296,6 +503,38 @@ function RiskPanel({ event, onClose, supplyChainEdges = [], watchlistTickers = n
                   {riskLabel(data.score)}
                 </span>
               </div>
+              {/* Stock price row */}
+              {quote && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 6, marginBottom: 4,
+                  padding: "3px 6px", borderRadius: 3, background: "rgba(15,23,42,0.4)",
+                }}>
+                  <span style={{ color: "#94A3B8", fontSize: 9, fontFamily: "JetBrains Mono, monospace", fontWeight: 700 }}>
+                    ${typeof quote.price === "number" ? quote.price.toFixed(2) : quote.price}
+                  </span>
+                  {priceChange != null && (
+                    <span style={{ color: priceColor, fontSize: 8, fontFamily: "JetBrains Mono, monospace", fontWeight: 700 }}>
+                      {priceUp ? "+" : ""}{typeof priceChange === "number" ? priceChange.toFixed(2) : priceChange}%
+                    </span>
+                  )}
+                  {quote.change_7d != null && (
+                    <span style={{
+                      color: quote.change_7d >= 0 ? "#22C55E" : "#EF4444",
+                      fontSize: 7, fontFamily: "JetBrains Mono, monospace",
+                    }}>
+                      7D {quote.change_7d >= 0 ? "+" : ""}{quote.change_7d.toFixed(1)}%
+                    </span>
+                  )}
+                  {quote.change_30d != null && (
+                    <span style={{
+                      color: quote.change_30d >= 0 ? "#22C55E" : "#EF4444",
+                      fontSize: 7, fontFamily: "JetBrains Mono, monospace",
+                    }}>
+                      30D {quote.change_30d >= 0 ? "+" : ""}{quote.change_30d.toFixed(1)}%
+                    </span>
+                  )}
+                </div>
+              )}
               <div style={{ color: "#64748B", fontSize: 8.5, lineHeight: 1.5 }}>
                 {data.reasoning}
               </div>
@@ -306,9 +545,15 @@ function RiskPanel({ event, onClose, supplyChainEdges = [], watchlistTickers = n
         {/* Disrupted Supply Chain section */}
         {supplyChainEdges.length > 0 && (() => {
           const affectedTickers = Object.keys(event.risks);
-          const disrupted = supplyChainEdges.filter(e =>
+          let disrupted = supplyChainEdges.filter(e =>
             affectedTickers.includes(e.from_ticker) || affectedTickers.includes(e.to_ticker)
           );
+          // When watchlist is active, only show edges involving watched tickers
+          if (watchlistActive && watchlistTickers.size > 0) {
+            disrupted = disrupted.filter(e =>
+              watchlistTickers.has(e.from_ticker) || watchlistTickers.has(e.to_ticker)
+            );
+          }
           if (disrupted.length === 0) return null;
           return (
             <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 5,
@@ -392,121 +637,6 @@ function StatusBar({ companies, activeEvent, processing, isMobile, watchlistActi
   );
 }
 
-// ── Sector abbreviations ─────────────────────────────────────────────────────
-const SECTOR_SHORT = {
-  'Technology': 'TECH', 'Financials': 'FIN', 'Healthcare': 'HC',
-  'Energy': 'ENRG', 'Consumer Disc': 'DISC', 'Consumer Staples': 'STPL',
-  'Industrials': 'IND', 'Communication': 'COMM', 'Materials': 'MATL',
-  'Utilities': 'UTIL', 'Real Estate': 'RE',
-};
-
-// ── Watchlist Bar ────────────────────────────────────────────────────────────
-function WatchlistBar({ sectors, watchlistTickers, watchlistMode, onToggleSector, onToggleTicker, onReset, companies, isMobile }) {
-  const [search, setSearch] = useState("");
-  const searchResults = useMemo(() => {
-    if (!search) return [];
-    const q = search.toUpperCase();
-    return companies.filter(c => c.ticker.includes(q) || c.name.toUpperCase().includes(q)).slice(0, 6);
-  }, [search, companies]);
-
-  return (
-    <div style={{
-      background: "rgba(8,13,26,0.98)", borderBottom: "1px solid rgba(139,92,246,0.2)",
-      padding: isMobile ? "8px 10px" : "8px 20px",
-      display: "flex", alignItems: "center", gap: 8, flexShrink: 0, zIndex: 10,
-      flexWrap: isMobile ? "wrap" : "nowrap",
-    }}>
-      {/* ALL button */}
-      <button onClick={onReset} style={{
-        background: watchlistMode === "all" ? "rgba(139,92,246,0.2)" : "none",
-        border: `1px solid ${watchlistMode === "all" ? "rgba(139,92,246,0.5)" : "rgba(59,130,246,0.15)"}`,
-        color: watchlistMode === "all" ? "#C4B5FD" : "#475569",
-        padding: "3px 10px", borderRadius: 3, cursor: "pointer",
-        fontSize: 8, fontFamily: "JetBrains Mono, monospace", letterSpacing: 1, fontWeight: 700,
-        flexShrink: 0,
-      }}>ALL</button>
-
-      <div style={{ width: 1, height: 20, background: "rgba(59,130,246,0.15)", flexShrink: 0 }} />
-
-      {/* Sector pills */}
-      <div style={{
-        display: "flex", gap: 4, overflowX: "auto", flex: 1,
-        scrollbarWidth: "none", msOverflowStyle: "none",
-      }}>
-        {sectors.map(([sector, tickers]) => {
-          const allSelected = tickers.every(t => watchlistTickers.has(t));
-          const someSelected = tickers.some(t => watchlistTickers.has(t));
-          return (
-            <button key={sector} onClick={() => onToggleSector(tickers)} style={{
-              background: allSelected ? "rgba(139,92,246,0.2)" : someSelected ? "rgba(139,92,246,0.1)" : "none",
-              border: `1px solid ${allSelected ? "rgba(139,92,246,0.5)" : someSelected ? "rgba(139,92,246,0.3)" : "rgba(59,130,246,0.1)"}`,
-              color: allSelected ? "#C4B5FD" : someSelected ? "#A78BFA" : "#475569",
-              padding: "3px 8px", borderRadius: 3, cursor: "pointer",
-              fontSize: 7, fontFamily: "JetBrains Mono, monospace", letterSpacing: 0.5,
-              whiteSpace: "nowrap", flexShrink: 0, transition: "all 0.15s",
-            }}>
-              {SECTOR_SHORT[sector] || sector} ({tickers.length})
-            </button>
-          );
-        })}
-      </div>
-
-      <div style={{ width: 1, height: 20, background: "rgba(59,130,246,0.15)", flexShrink: 0 }} />
-
-      {/* Search */}
-      <div style={{ position: "relative", flexShrink: 0 }}>
-        <input
-          value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="TICKER..."
-          style={{
-            background: "rgba(15,23,42,0.8)", border: "1px solid rgba(59,130,246,0.15)",
-            color: "#F8FAFC", borderRadius: 3, padding: "3px 8px", width: isMobile ? 80 : 100,
-            fontSize: 8, fontFamily: "JetBrains Mono, monospace", outline: "none",
-          }}
-          onFocus={e => e.target.style.borderColor = "rgba(139,92,246,0.5)"}
-          onBlur={e => { e.target.style.borderColor = "rgba(59,130,246,0.15)"; setTimeout(() => setSearch(""), 200); }}
-        />
-        {searchResults.length > 0 && (
-          <div style={{
-            position: "absolute", top: "100%", left: 0, right: 0, marginTop: 2,
-            background: "rgba(8,13,26,0.98)", border: "1px solid rgba(139,92,246,0.3)",
-            borderRadius: 4, zIndex: 50, overflow: "hidden",
-          }}>
-            {searchResults.map(c => {
-              const selected = watchlistTickers.has(c.ticker);
-              return (
-                <div key={c.ticker} onMouseDown={() => onToggleTicker(c.ticker)} style={{
-                  padding: "4px 8px", cursor: "pointer",
-                  background: selected ? "rgba(139,92,246,0.15)" : "transparent",
-                  display: "flex", alignItems: "center", gap: 6,
-                  transition: "background 0.1s",
-                }}
-                  onMouseEnter={e => e.currentTarget.style.background = selected ? "rgba(139,92,246,0.2)" : "rgba(59,130,246,0.1)"}
-                  onMouseLeave={e => e.currentTarget.style.background = selected ? "rgba(139,92,246,0.15)" : "transparent"}
-                >
-                  <span style={{ color: selected ? "#C4B5FD" : "#F8FAFC", fontSize: 9, fontWeight: 700,
-                    fontFamily: "JetBrains Mono, monospace", minWidth: 36 }}>{c.ticker}</span>
-                  <span style={{ color: "#64748B", fontSize: 7, overflow: "hidden", textOverflow: "ellipsis",
-                    whiteSpace: "nowrap" }}>{c.name}</span>
-                  {selected && <span style={{ color: "#8B5CF6", fontSize: 8, marginLeft: "auto" }}>&#x2713;</span>}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Count */}
-      {watchlistMode === "custom" && watchlistTickers.size > 0 && (
-        <span style={{ color: "#A78BFA", fontSize: 8, fontFamily: "JetBrains Mono, monospace",
-          letterSpacing: 1, flexShrink: 0 }}>
-          {watchlistTickers.size} SELECTED
-        </span>
-      )}
-    </div>
-  );
-}
-
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function RiskTerrain() {
   const [events, setEvents] = useState([]);
@@ -514,25 +644,54 @@ export default function RiskTerrain() {
   const [view, setView] = useState("feed"); // "feed" | "report" | "graph"
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [processing, setProcessing] = useState(false);
+  const [companies, setCompanies] = useState([]);
   const [supplyChain, setSupplyChain] = useState([]);
   const [graphTicker, setGraphTicker] = useState(null);
   const globeRef = useRef(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [panelOpen, setPanelOpen] = useState(false);
-  const [watchlistOpen, setWatchlistOpen] = useState(false);
   const [watchlistMode, setWatchlistMode] = useState("all");
   const [watchlistTickers, setWatchlistTickers] = useState(new Set());
+  const [widgetStates, setWidgetStates] = useState(() => {
+    try {
+      const saved = localStorage.getItem("riskterrain-widget-layout");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const merged = { ...DEFAULT_WIDGETS };
+        for (const id of Object.keys(DEFAULT_WIDGETS)) {
+          if (parsed[id]) merged[id] = { ...DEFAULT_WIDGETS[id], ...parsed[id] };
+        }
+        return merged;
+      }
+    } catch { /* ignore corrupt data */ }
+    return DEFAULT_WIDGETS;
+  });
+  const [widgetDropdownOpen, setWidgetDropdownOpen] = useState(false);
+  const [topZ, setTopZ] = useState(11);
 
-  const watchlistActive = watchlistMode === "custom" && watchlistTickers.size > 0;
+  // Persist widget layout to localStorage (debounced)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      localStorage.setItem("riskterrain-widget-layout", JSON.stringify(widgetStates));
+    }, 500);
+    return () => clearTimeout(t);
+  }, [widgetStates]);
 
-  const sectors = useMemo(() => {
-    const map = {};
-    SP500_SAMPLE.forEach(c => {
-      if (!map[c.sector]) map[c.sector] = [];
-      map[c.sector].push(c.ticker);
-    });
-    return Object.entries(map).sort((a, b) => b[1].length - a[1].length);
+  const activeWidgetCount = Object.values(widgetStates).filter(w => w.active).length;
+  const hasActiveWidgets = !isMobile && activeWidgetCount > 0;
+
+  const updateWidget = useCallback((id, patch) => {
+    setWidgetStates(prev => ({ ...prev, [id]: { ...prev[id], ...patch } }));
   }, []);
+
+  const bringToFront = useCallback((id) => {
+    setTopZ(prev => {
+      const next = prev + 1;
+      setWidgetStates(ws => ({ ...ws, [id]: { ...ws[id], zIndex: next } }));
+      return next;
+    });
+  }, []);
+  const watchlistActive = watchlistMode === "custom" && watchlistTickers.size > 0;
 
   const filteredEvents = useMemo(() => {
     if (!watchlistActive) return events;
@@ -547,12 +706,21 @@ export default function RiskTerrain() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  const MAX_TICKERS = 30;
+
   const handleToggleSector = useCallback((sectorTickers) => {
     setWatchlistMode("custom");
     setWatchlistTickers(prev => {
       const next = new Set(prev);
       const allSelected = sectorTickers.every(t => next.has(t));
-      sectorTickers.forEach(t => allSelected ? next.delete(t) : next.add(t));
+      if (allSelected) {
+        sectorTickers.forEach(t => next.delete(t));
+      } else {
+        for (const t of sectorTickers) {
+          if (next.size >= MAX_TICKERS) break;
+          next.add(t);
+        }
+      }
       return next;
     });
   }, []);
@@ -561,7 +729,11 @@ export default function RiskTerrain() {
     setWatchlistMode("custom");
     setWatchlistTickers(prev => {
       const next = new Set(prev);
-      next.has(ticker) ? next.delete(ticker) : next.add(ticker);
+      if (next.has(ticker)) {
+        next.delete(ticker);
+      } else if (next.size < MAX_TICKERS) {
+        next.add(ticker);
+      }
       return next;
     });
   }, []);
@@ -569,6 +741,26 @@ export default function RiskTerrain() {
   const handleWatchlistReset = useCallback(() => {
     setWatchlistMode("all");
     setWatchlistTickers(new Set());
+  }, []);
+
+  // Close widget dropdown on outside click
+  useEffect(() => {
+    if (!widgetDropdownOpen) return;
+    const handler = (e) => {
+      if (!e.target.closest("[data-widget-dropdown]")) setWidgetDropdownOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [widgetDropdownOpen]);
+
+  // Fetch companies from backend on mount
+  useEffect(() => {
+    fetch('/api/v1/companies')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) setCompanies(data);
+      })
+      .catch(err => console.warn('Companies not available:', err));
   }, []);
 
   // Fetch existing events from backend on mount
@@ -607,30 +799,6 @@ export default function RiskTerrain() {
     }, 4000);
     return () => clearTimeout(t);
   }, [activeEvent]);
-
-  const handleTrigger = useCallback(async (idx) => {
-    const prompts = [
-      "M7.4 earthquake strikes Hualien County, Taiwan. TSMC reports damage to advanced fabs and pauses chip production.",
-      "US Treasury announces sweeping new export controls on semiconductor technology to China, targeting EUV equipment.",
-      "Federal Reserve raises interest rates by 75 basis points, signaling continued tightening amid persistent inflation.",
-    ];
-    setProcessing(true);
-    try {
-      const res = await fetch('/api/v1/events/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: prompts[idx], source: 'manual' }),
-      });
-      const evt = await res.json();
-      setEvents(prev => [evt, ...prev]);
-      setActiveEvent(evt);
-      setView("report");
-    } catch (err) {
-      console.error('Pipeline failed:', err);
-    } finally {
-      setProcessing(false);
-    }
-  }, []);
 
   const handleEventSelect = useCallback((event) => {
     setActiveEvent(event);
@@ -709,7 +877,7 @@ export default function RiskTerrain() {
 
           <div style={{ display: "flex", gap: isMobile ? 10 : 20, alignItems: "center" }}>
             {!isMobile && [
-              { label: watchlistActive ? "WATCHING" : "COMPANIES", value: watchlistActive ? watchlistTickers.size : SP500_SAMPLE.length, color: watchlistActive ? "#8B5CF6" : "#3B82F6" },
+              { label: watchlistActive ? "WATCHING" : "COMPANIES", value: watchlistActive ? watchlistTickers.size : companies.length, color: watchlistActive ? "#8B5CF6" : "#3B82F6" },
               { label: "EDGES", value: supplyChain.length, color: "#8B5CF6" },
               { label: "EVENTS", value: filteredEvents.length, color: "#F97316" },
               { label: "CRITICAL", value: activeEvent ? Object.values(activeEvent.risks).filter(r => r.score >= 0.8).length : 0, color: "#EF4444" },
@@ -741,10 +909,13 @@ export default function RiskTerrain() {
                 </button>
               ))}
             </div>
-            <button onClick={() => setWatchlistOpen(prev => !prev)} style={{
-              background: watchlistActive ? "rgba(139,92,246,0.2)" : watchlistOpen ? "rgba(139,92,246,0.1)" : "none",
+            <button onClick={() => {
+              const filterActive = widgetStates.filter?.active;
+              updateWidget("filter", { active: !filterActive });
+            }} style={{
+              background: watchlistActive ? "rgba(139,92,246,0.2)" : widgetStates.filter?.active ? "rgba(139,92,246,0.1)" : "none",
               border: `1px solid ${watchlistActive ? "rgba(139,92,246,0.5)" : "rgba(59,130,246,0.1)"}`,
-              color: watchlistActive ? "#C4B5FD" : watchlistOpen ? "#A78BFA" : "#475569",
+              color: watchlistActive ? "#C4B5FD" : widgetStates.filter?.active ? "#A78BFA" : "#475569",
               padding: "4px 12px", borderRadius: 4, cursor: "pointer",
               fontSize: 9, fontFamily: "JetBrains Mono, monospace", letterSpacing: 1,
               transition: "all 0.15s", position: "relative",
@@ -771,27 +942,44 @@ export default function RiskTerrain() {
           </div>
         </div>
 
-        {/* Watchlist Bar */}
-        {watchlistOpen && (
-          <WatchlistBar
-            sectors={sectors}
-            watchlistTickers={watchlistTickers}
-            watchlistMode={watchlistMode}
-            onToggleSector={handleToggleSector}
-            onToggleTicker={handleToggleTicker}
-            onReset={handleWatchlistReset}
-            companies={SP500_SAMPLE}
-            isMobile={isMobile}
-          />
-        )}
-
         {/* Main Content */}
         <div style={{ flex: 1, display: "flex", overflow: "hidden", zIndex: 2, position: "relative" }}>
 
           {/* 3D Globe */}
-          <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+          <div data-widget-container style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+            {/* Floating Widgets — desktop only */}
+            {!isMobile && WIDGET_CATALOG.map(w => {
+              const ws = widgetStates[w.id];
+              if (!ws?.active) return null;
+              const Widget = w.component;
+              const extraProps = w.id === "filter" ? {
+                companies,
+                watchlistTickers,
+                watchlistMode,
+                onToggleSector: handleToggleSector,
+                onToggleTicker: handleToggleTicker,
+                onReset: handleWatchlistReset,
+              } : w.id === "tracker" ? {
+                events,
+                companies,
+              } : w.id === "settings" ? {} : { watchlistTickers };
+              return (
+                <FloatingWidget
+                  key={w.id}
+                  id={w.id}
+                  title={w.label}
+                  state={ws}
+                  statusColor={w.statusColor}
+                  onUpdate={(patch) => updateWidget(w.id, patch)}
+                  onClose={() => updateWidget(w.id, { active: false })}
+                  onBringToFront={() => bringToFront(w.id)}
+                >
+                  <Widget {...extraProps} />
+                </FloatingWidget>
+              );
+            })}
             <Globe3D
-              companies={SP500_SAMPLE}
+              companies={companies}
               activeEvent={view !== "graph" ? activeEvent : null}
               supplyChainEdges={supplyChain}
               showSupplyChain={view === "graph" || (view === "report" && !!activeEvent)}
@@ -941,6 +1129,113 @@ export default function RiskTerrain() {
               </div>
             )}
 
+            {/* Desktop: floating + WIDGETS button bottom-right */}
+            {!isMobile && (
+              <div data-widget-dropdown style={{ position: "absolute", bottom: 16, right: 16, zIndex: 30 }}>
+                <button onClick={() => setWidgetDropdownOpen(prev => !prev)} style={{
+                  background: hasActiveWidgets ? "rgba(29,78,216,0.9)" : "rgba(8,13,26,0.9)",
+                  border: `1px solid ${hasActiveWidgets ? "rgba(59,130,246,0.6)" : "rgba(59,130,246,0.3)"}`,
+                  color: hasActiveWidgets ? "#F8FAFC" : "#93C5FD",
+                  padding: "8px 16px", borderRadius: 8, cursor: "pointer",
+                  fontSize: 10, fontFamily: "JetBrains Mono, monospace", fontWeight: 800,
+                  letterSpacing: 1, transition: "all 0.15s",
+                  display: "flex", alignItems: "center", gap: 6,
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+                  backdropFilter: "blur(8px)",
+                }}>
+                  + WIDGETS
+                  {activeWidgetCount > 0 && (
+                    <span style={{
+                      background: "#3B82F6", color: "#F8FAFC",
+                      fontSize: 8, fontWeight: 800, borderRadius: 8,
+                      padding: "2px 6px", minWidth: 18, textAlign: "center",
+                    }}>{activeWidgetCount}</span>
+                  )}
+                </button>
+                {widgetDropdownOpen && (
+                  <div style={{
+                    position: "absolute", bottom: "calc(100% + 8px)", right: 0,
+                    background: "rgba(8,13,26,0.98)", border: "1px solid rgba(59,130,246,0.2)",
+                    borderRadius: 8, padding: "8px 0", minWidth: 220,
+                    boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 0 1px rgba(59,130,246,0.2)",
+                    backdropFilter: "blur(12px)",
+                  }}>
+                    <div style={{ padding: "4px 14px 8px", color: "#475569", fontSize: 8,
+                      fontFamily: "JetBrains Mono, monospace", letterSpacing: 2, borderBottom: "1px solid rgba(59,130,246,0.1)" }}>
+                      TOGGLE WIDGETS
+                    </div>
+                    {WIDGET_CATALOG.map(w => {
+                      const active = widgetStates[w.id]?.active;
+                      return (
+                        <div key={w.id} onClick={() => updateWidget(w.id, { active: !active })} style={{
+                          display: "flex", alignItems: "center", gap: 10,
+                          padding: "7px 14px", cursor: "pointer", transition: "background 0.1s",
+                        }}
+                          onMouseEnter={e => e.currentTarget.style.background = "rgba(59,130,246,0.06)"}
+                          onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                        >
+                          {/* Status dot */}
+                          <div style={{
+                            width: 5, height: 5, borderRadius: "50%",
+                            background: active ? (w.statusColor || "#3B82F6") : "#334155",
+                            boxShadow: active ? `0 0 4px ${w.statusColor || "#3B82F6"}80` : "none",
+                            flexShrink: 0, transition: "all 0.2s",
+                          }} />
+                          {/* Label */}
+                          <span style={{
+                            color: active ? "#E2E8F0" : "#64748B", fontSize: 9,
+                            fontFamily: "JetBrains Mono, monospace", letterSpacing: 1,
+                            flex: 1, transition: "color 0.15s",
+                          }}>{w.label}</span>
+                          {/* Toggle switch */}
+                          <div style={{
+                            width: 28, height: 14, borderRadius: 7,
+                            background: active ? "rgba(59,130,246,0.35)" : "rgba(100,116,139,0.15)",
+                            border: `1px solid ${active ? "rgba(59,130,246,0.5)" : "rgba(100,116,139,0.25)"}`,
+                            position: "relative", flexShrink: 0, transition: "all 0.2s",
+                          }}>
+                            <div style={{
+                              width: 10, height: 10, borderRadius: "50%",
+                              background: active ? "#3B82F6" : "#475569",
+                              position: "absolute", top: 1, left: active ? 15 : 1,
+                              transition: "left 0.2s ease, background 0.2s ease",
+                              boxShadow: active ? "0 0 4px rgba(59,130,246,0.5)" : "none",
+                            }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div style={{ borderTop: "1px solid rgba(59,130,246,0.1)", padding: "6px 14px 2px", marginTop: 4, display: "flex", flexDirection: "column", gap: 4 }}>
+                      <button onClick={() => {
+                        localStorage.removeItem("riskterrain-widget-layout");
+                        setWidgetStates(DEFAULT_WIDGETS);
+                        setWidgetDropdownOpen(false);
+                      }} style={{
+                        width: "100%", background: "rgba(239,68,68,0.06)",
+                        border: "1px solid rgba(239,68,68,0.15)", color: "#EF4444",
+                        borderRadius: 4, padding: "5px 0", cursor: "pointer",
+                        fontSize: 8, fontFamily: "JetBrains Mono, monospace", letterSpacing: 1, fontWeight: 700,
+                        transition: "all 0.15s",
+                      }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "rgba(239,68,68,0.12)"; e.currentTarget.style.borderColor = "rgba(239,68,68,0.3)"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "rgba(239,68,68,0.06)"; e.currentTarget.style.borderColor = "rgba(239,68,68,0.15)"; }}
+                      >RESET LAYOUT</button>
+                      <button onClick={() => setWidgetDropdownOpen(false)} style={{
+                        width: "100%", background: "rgba(29,78,216,0.12)",
+                        border: "1px solid rgba(59,130,246,0.25)", color: "#93C5FD",
+                        borderRadius: 4, padding: "5px 0", cursor: "pointer",
+                        fontSize: 8, fontFamily: "JetBrains Mono, monospace", letterSpacing: 1, fontWeight: 700,
+                        transition: "all 0.15s",
+                      }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "rgba(29,78,216,0.2)"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "rgba(29,78,216,0.12)"; }}
+                      >CLOSE</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Mobile: floating panel toggle */}
             {isMobile && !panelOpen && (
               <button onClick={() => setPanelOpen(true)} style={{
@@ -990,7 +1285,7 @@ export default function RiskTerrain() {
               {view === "graph" ? (
                 <SupplyChainPanel
                   edges={supplyChain}
-                  companies={SP500_SAMPLE}
+                  companies={companies}
                   selectedTicker={graphTicker}
                   onTickerSelect={setGraphTicker}
                 />
@@ -999,7 +1294,6 @@ export default function RiskTerrain() {
                   events={filteredEvents}
                   activeEvent={activeEvent}
                   onEventSelect={(event) => { handleEventSelect(event); if (isMobile) setPanelOpen(false); }}
-                  onTrigger={(idx) => { handleTrigger(idx); if (isMobile) setPanelOpen(false); }}
                   processing={processing}
                 />
               ) : (
@@ -1017,7 +1311,7 @@ export default function RiskTerrain() {
 
         {/* Status Bar */}
         <StatusBar
-          companies={SP500_SAMPLE}
+          companies={companies}
           activeEvent={activeEvent}
           processing={processing}
           isMobile={isMobile}

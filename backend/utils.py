@@ -104,6 +104,53 @@ def call_claude(system: str, user_content: str, max_tokens: int = 500,
     raise RuntimeError("Claude call failed after retries")
 
 
+# -- Gemini Flash (cheap/fast classification) --------------------------------
+
+_gemini_client = None
+
+
+def get_gemini_client():
+    """Lazy-init Google GenAI client."""
+    global _gemini_client
+    if _gemini_client is None:
+        from google import genai
+        _gemini_client = genai.Client(api_key=settings.GOOGLE_API_KEY)
+    return _gemini_client
+
+
+def call_gemini(system: str, user_content: str, max_tokens: int = 500,
+                temperature: float = 0, max_retries: int = 2) -> str:
+    """
+    Call Gemini Flash with same interface as call_claude().
+    Used for cheap classification tasks (event_intake, geo_resolver).
+    """
+    from google.genai import types
+    client = get_gemini_client()
+    rid = get_request_id()
+
+    for attempt in range(max_retries + 1):
+        try:
+            response = client.models.generate_content(
+                model=settings.GEMINI_MODEL,
+                contents=user_content,
+                config=types.GenerateContentConfig(
+                    system_instruction=system,
+                    max_output_tokens=max_tokens,
+                    temperature=temperature,
+                ),
+            )
+            return strip_code_fences(response.text.strip())
+        except Exception as e:
+            wait = min(2 ** attempt * 2, 30)
+            logger.warning(f"[{rid}] Gemini error (attempt {attempt+1}): {e}")
+            if attempt < max_retries:
+                time.sleep(wait)
+            else:
+                raise
+
+    raise RuntimeError("Gemini call failed after retries")
+
+
 def parse_claude_json(text: str, fallback: dict | None = None) -> dict:
     """Parse JSON from Claude response with fallback. Fix #57: catches ValueError too."""
     cleaned = strip_code_fences(text)

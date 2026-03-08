@@ -4,7 +4,7 @@ Node 2: geo_resolver -- Fix #29 #59 #61
 
 import logging
 from agents.state import RiskState
-from utils import call_claude, parse_claude_json
+from utils import call_gemini, parse_claude_json
 
 logger = logging.getLogger("riskterrain.node.geo_resolver")
 
@@ -32,8 +32,8 @@ def geo_resolver(state: RiskState) -> dict:
 
     logger.info(f"geo_resolver: '{state.get('title', '')}'")
 
-    # Fix #61: uses shared retry logic
-    raw_text = call_claude(
+    # Uses Gemini Flash for cheap/fast classification
+    raw_text = call_gemini(
         system=GEO_PROMPT,
         user_content=f"Event type: {state.get('event_type','unknown')}\nSeverity: {severity}/5\nDescription: {event_desc}",
         max_tokens=400,

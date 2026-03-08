@@ -55,7 +55,7 @@ class RiskState(TypedDict, total=False):
 
     # Node 5: news_enricher
     news_context: list[str]
-    news_articles: list[dict]  # [{title, url, source}]
+    news_articles: list[dict]  # [{title, url, source, published_at}]
 
     # Node 6: report_generator
     event_id: str

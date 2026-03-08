@@ -60,7 +60,8 @@ class GraphQueryResponse(BaseModel):  # Fix #89 #90
 def get_events():
     db = get_db()
     rows = _extract(db.query("SELECT * FROM event ORDER BY created_at DESC LIMIT 50"))
-    return [_clean(e) for e in rows if isinstance(e, dict) and e.get("title")]
+    cleaned = [_clean(e) for e in rows if isinstance(e, dict) and e.get("title")]
+    return _dedup_events(cleaned)
 
 
 @router.get("/events/{event_id}", response_model=EventResponse, tags=["events"])
@@ -123,7 +124,7 @@ def graph_query(request: GraphQueryRequest):
 
 def _fallback_graph_query(question: str, error: str = None) -> GraphQueryResponse:
     """Fix #37 #38: reduced limit, use system prompt."""
-    from utils import call_claude
+    from utils import call_gemini
     db = get_db()
 
     try:
@@ -139,8 +140,8 @@ def _fallback_graph_query(question: str, error: str = None) -> GraphQueryRespons
     except Exception:
         ctx = "Graph query unavailable"
 
-    # Fix #38: use system prompt via call_claude
-    answer = call_claude(
+    # Use Gemini Flash for cost efficiency
+    answer = call_gemini(
         system="You answer questions about a supply chain knowledge graph stored in SurrealDB. "
                "Use only the graph data provided to answer.",
         user_content=f"Graph data:\n{ctx}\n\nQuestion: {question}",
@@ -149,9 +150,58 @@ def _fallback_graph_query(question: str, error: str = None) -> GraphQueryRespons
 
     return GraphQueryResponse(
         question=question, answer=answer,
-        engine="fallback_claude_with_graph_context",
+        engine="fallback_gemini_with_graph_context",
         note=f"GraphQAChain unavailable: {error}" if error else None,
     )
+
+
+_STOP = {"a","an","the","of","in","on","to","for","and","or","is","are","was","has","by","at","its","with","from","over","into","says","said"}
+
+
+def _stem(word: str) -> str:
+    """Minimal suffix stripping so 'refunds'=='refund', 'processing'=='process'."""
+    if len(word) <= 4:
+        return word
+    if word.endswith("ing") and len(word) > 6:
+        return word[:-3]
+    if word.endswith("ed") and len(word) > 5:
+        return word[:-2]
+    if word.endswith("es") and not word.endswith("ses") and len(word) > 5:
+        return word[:-2]
+    if word.endswith("s") and not word.endswith("ss") and len(word) > 4:
+        return word[:-1]
+    return word
+
+
+def _title_words(title: str) -> set[str]:
+    return {_stem(w) for w in title.lower().split() if w not in _STOP and len(w) > 1}
+
+
+def _dedup_events(events: list[dict], threshold: float = 0.55) -> list[dict]:
+    """Remove near-duplicate events by title similarity. Keeps the first (most recent)."""
+    seen: list[set[str]] = []
+    unique: list[dict] = []
+    for evt in events:
+        words = _title_words(evt.get("title", ""))
+        if len(words) < 3:
+            unique.append(evt)
+            seen.append(words)
+            continue
+        is_dup = False
+        for existing_words in seen:
+            if not existing_words:
+                continue
+            intersection = words & existing_words
+            union = words | existing_words
+            jaccard = len(intersection) / len(union)
+            overlap = len(intersection) / min(len(words), len(existing_words))
+            if jaccard >= threshold or overlap >= 0.40:
+                is_dup = True
+                break
+        if not is_dup:
+            unique.append(evt)
+            seen.append(words)
+    return unique
 
 
 def _extract(result) -> list[dict]:

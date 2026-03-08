@@ -8,6 +8,7 @@ RiskTerrain Agent Pipeline -- LangGraph StateGraph
 import time
 import logging
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import MemorySaver
 from agents.state import RiskState
 from utils import new_request_id, get_request_id
 
@@ -58,8 +59,9 @@ def _get_pipeline():
     workflow.add_edge("risk_scorer", "report_generator")
     workflow.add_edge("report_generator", END)
 
-    _pipeline = workflow.compile()
-    logger.info("LangGraph pipeline compiled: 6 nodes (intake->geo->graph->news->score->report)")
+    checkpointer = MemorySaver()
+    _pipeline = workflow.compile(checkpointer=checkpointer)
+    logger.info("LangGraph pipeline compiled: 6 nodes (intake->geo->graph->news->score->report) + checkpointer")
     return _pipeline
 
 
@@ -70,7 +72,8 @@ def run_pipeline(raw_input: str, source: str = "manual") -> dict:
     logger.info(f"[{rid}] Pipeline START: source={source}, len={len(raw_input)}")
 
     pipeline = _get_pipeline()
-    result = pipeline.invoke({"raw_input": raw_input, "source_hint": source})
+    config = {"configurable": {"thread_id": rid}}
+    result = pipeline.invoke({"raw_input": raw_input, "source_hint": source}, config=config)
 
     final = result.get("final_output", {})
     elapsed = time.time() - t0

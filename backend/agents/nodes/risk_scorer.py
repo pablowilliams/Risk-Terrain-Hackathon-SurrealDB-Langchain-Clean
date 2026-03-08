@@ -5,7 +5,7 @@ Node 4: risk_scorer -- Fix #18 #25 #26 #62 #93
 import json
 import logging
 from agents.state import RiskState
-from utils import call_claude, parse_claude_json
+from utils import call_gemini, parse_claude_json
 
 logger = logging.getLogger("riskterrain.node.risk_scorer")
 
@@ -75,8 +75,8 @@ def risk_scorer(state: RiskState) -> dict:
     full = f"{event_ctx}\n{co_ctx}\n{path_ctx}{hist_ctx}{news_ctx}"
     logger.info(f"risk_scorer: {len(exposed)} companies, ~{len(full)} chars context")
 
-    # Fix #62: retry-enabled Claude call; Fix #26: 2500 tokens for headroom
-    raw = call_claude(system=SCORING_PROMPT, user_content=full, max_tokens=2500)
+    # Use Gemini Flash for cost efficiency; Fix #26: 2500 tokens for headroom
+    raw = call_gemini(system=SCORING_PROMPT, user_content=full, max_tokens=2500)
 
     risks = parse_claude_json(raw)
     if not risks:

@@ -19,10 +19,17 @@ class Settings(BaseSettings):
     SURREAL_TOKEN: str = Field(default="")  # JWT token for SurrealDB Cloud
 
     ANTHROPIC_API_KEY: str = Field(default="")  # Validated below
+    GOOGLE_API_KEY: str = Field(default="")
+    GEMINI_MODEL: str = Field(default="gemini-2.0-flash")
     NEWSAPI_KEY: str = Field(default="")
     HOST: str = Field(default="0.0.0.0")
     PORT: int = Field(default=8000)
     CLAUDE_MODEL: str = Field(default="claude-sonnet-4-20250514")  # Fix #44
+
+    # LangSmith observability (set LANGCHAIN_API_KEY to enable tracing)
+    LANGCHAIN_TRACING_V2: str = Field(default="true")
+    LANGCHAIN_PROJECT: str = Field(default="riskterrain")
+    LANGCHAIN_API_KEY: str = Field(default="")
 
     # Fix #17: warn if key is empty but don't crash (allows health check to work)
     @field_validator("ANTHROPIC_API_KEY")
@@ -37,3 +44,10 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Export LangSmith env vars so langchain/langgraph auto-trace
+import os
+if settings.LANGCHAIN_API_KEY:
+    os.environ["LANGCHAIN_TRACING_V2"] = settings.LANGCHAIN_TRACING_V2
+    os.environ["LANGCHAIN_PROJECT"] = settings.LANGCHAIN_PROJECT
+    os.environ["LANGCHAIN_API_KEY"] = settings.LANGCHAIN_API_KEY

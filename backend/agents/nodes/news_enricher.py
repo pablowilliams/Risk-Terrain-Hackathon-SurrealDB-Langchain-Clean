@@ -49,8 +49,9 @@ def news_enricher(state: RiskState) -> dict:
                     if t and t != "[Removed]":
                         src = article.get("source", {}).get("name", "Unknown")
                         url = article.get("url", "")
+                        published_at = article.get("publishedAt", "")
                         headlines.append(f"[{src}] {t}")
-                        articles_out.append({"title": t, "url": url, "source": src})
+                        articles_out.append({"title": t, "url": url, "source": src, "published_at": published_at})
                 logger.info(f"news_enricher: {len(headlines)} headlines")
             else:
                 logger.warning(f"NewsAPI status {r.status_code}")
